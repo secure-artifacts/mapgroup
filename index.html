@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>海外多地点智能选址与自动分组决策系统 V5.0 Pro</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    
+    <!-- Modular CSS Stylesheets -->
+    <link rel="stylesheet" href="css/main.css" />
+    <link rel="stylesheet" href="css/sidebar.css" />
+    <link rel="stylesheet" href="css/map.css" />
+
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body data-theme="dark">
+
+<div id="app-layout">
+    <!-- 控制侧边栏 -->
+    <div id="sidebar">
+        <!-- Brand Header -->
+        <div class="sidebar-header">
+            <div class="brand-title">
+                <div class="brand-icon">
+                    <i class="fa-solid fa-map-location-dot"></i>
+                </div>
+                <div class="brand-text">
+                    <h1>智能选址分组决策系统</h1>
+                    <span>V5.0 Pro · GitHub Pages 部署版</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="icon-btn" onclick="toggleTheme()" title="切换亮/暗视觉主题">
+                    <i class="fa-solid fa-moon" id="theme-icon"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Dashboard Statistics -->
+        <div class="stats-bar">
+            <div class="stat-card">
+                <div class="val" id="stat-total-people">0</div>
+                <div class="lbl">已导入人员</div>
+            </div>
+            <div class="stat-card">
+                <div class="val" id="stat-total-groups" style="color:var(--accent-purple)">0</div>
+                <div class="lbl">已建立中心</div>
+            </div>
+            <div class="stat-card">
+                <div class="val" id="stat-cover-rate" style="color:var(--accent-emerald)">0%</div>
+                <div class="lbl">总覆盖率</div>
+            </div>
+            <div class="stat-card">
+                <div class="val" id="stat-avg-dist" style="color:var(--accent-amber)">0 km</div>
+                <div class="lbl">平均通勤</div>
+            </div>
+        </div>
+
+        <!-- 选项卡导航 -->
+        <div class="tab-box">
+            <div class="tab-btn active" onclick="switchTab('roster-tab')">
+                <i class="fa-solid fa-users"></i> 人员管理
+            </div>
+            <div class="tab-btn" onclick="switchTab('target-tab')">
+                <i class="fa-solid fa-crosshairs"></i> 目标规划
+            </div>
+            <div class="tab-btn" onclick="switchTab('ai-tab')">
+                <i class="fa-solid fa-robot"></i> 智能分组
+            </div>
+            <div class="tab-btn" onclick="switchTab('analysis-tab')">
+                <i class="fa-solid fa-chart-pie"></i> 统计分析
+            </div>
+        </div>
+
+        <!-- Tab 1: 人员管理 -->
+        <div id="roster-tab" class="tab-content active">
+            <div class="section-card">
+                <div class="section-header">
+                    <span class="section-title"><i class="fa-solid fa-file-csv"></i> CSV 批量导入名单</span>
+                    <button class="btn btn-outline btn-sm" onclick="loadSampleDemoData()">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> 试用示例数据
+                    </button>
+                </div>
+                <div class="dropzone">
+                    <input type="file" id="csv-file-input" accept=".csv">
+                    <div class="dropzone-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+                    <div style="font-size:12px; font-weight:600;">点击或拖拽 CSV 文件至此处导入</div>
+                    <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">支持格式：姓名, 纬度, 经度, 详细地址 (或 姓名, 地址)</div>
+                </div>
+                <div class="progress-bar-container" id="csv-progress-wrap" style="display:none;">
+                    <div class="progress-bar-fill" id="csv-progress-fill"></div>
+                </div>
+                <div id="csv-status" style="font-size:11px; color:var(--accent-emerald);"></div>
+            </div>
+
+            <div class="section-card">
+                <div class="section-title"><i class="fa-solid fa-user-plus"></i> 手动添加单个人员</div>
+                <div class="form-group">
+                    <input type="text" id="add-name" class="form-control" placeholder="姓名 / 标识符 (如: 张三)">
+                    <div class="input-group">
+                        <input type="text" id="add-address" class="form-control" placeholder="详细地址 或 Lat, Lng 坐标">
+                        <button class="btn btn-primary" onclick="addSinglePerson()">
+                            <i class="fa-solid fa-plus"></i> 添加
+                        </button>
+                    </div>
+                    <div id="add-status" style="font-size:11px; color:var(--accent-emerald);"></div>
+                </div>
+            </div>
+
+            <div class="section-card" style="flex:1;">
+                <div class="section-header">
+                    <span class="section-title">
+                        <i class="fa-solid fa-list-ul"></i> 当前人员列表 (<span id="roster-count">0</span>人)
+                    </span>
+                    <button class="btn btn-danger btn-sm" onclick="clearAllPeople()">
+                        <i class="fa-solid fa-trash-can"></i> 清空全部
+                    </button>
+                </div>
+                <input type="text" id="roster-search" class="form-control" placeholder="搜索人员姓名或地址..." oninput="filterRoster()">
+                <div id="roster-list" class="item-list" style="flex:1;"></div>
+            </div>
+        </div>
+
+        <!-- Tab 2: 目标规划 -->
+        <div id="target-tab" class="tab-content">
+            <div class="section-card">
+                <div class="section-title"><i class="fa-solid fa-layer-group"></i> 地图底图样式切换</div>
+                <div class="form-group">
+                    <select id="map-tile-select" class="form-control" onchange="mapManager.switchTileLayer(this.value)">
+                        <option value="google_road">Google Maps (路线矢量图)</option>
+                        <option value="google_hybrid">Google Maps (卫星影像图)</option>
+                        <option value="carto_dark">CartoDB Dark (极简暗黑高对比度)</option>
+                        <option value="osm_standard">OpenStreetMap (开源标准图)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <div class="section-title"><i class="fa-solid fa-magnifying-glass-location"></i> 地址搜索定位中心</div>
+                <div class="form-group">
+                    <div class="input-group">
+                        <input type="text" id="search-address-input" class="form-control" placeholder="输入地标名称或具体地址...">
+                        <button class="btn btn-primary" onclick="searchTargetAddress()">
+                            <i class="fa-solid fa-magnifying-glass"></i> 搜索定位
+                        </button>
+                    </div>
+                    <div id="search-status" style="font-size:11px; color:var(--accent-blue);"></div>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <div class="section-header">
+                    <span class="section-title"><i class="fa-solid fa-radar"></i> 探针雷达模式</span>
+                    <button class="btn btn-outline btn-sm" id="probe-btn" onclick="toggleProbeMode()">
+                        <i class="fa-solid fa-satellite-dish"></i> 开启探针
+                    </button>
+                </div>
+                <p style="font-size:11px; color:var(--text-muted);">开启探针后，鼠标在地图滑动时会自动实时探测周边人员并拉出射线，点击地图即可直接锁定该选址点。</p>
+            </div>
+
+            <div class="section-card" style="flex:1;">
+                <div class="section-header">
+                    <span class="section-title"><i class="fa-solid fa-location-dot"></i> 已保存目标中心</span>
+                    <button class="btn btn-success btn-sm" onclick="saveCurrentAsTarget()">
+                        <i class="fa-solid fa-bookmark"></i> 保存为目标
+                    </button>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <span>设定当前覆盖半径 (公里)</span>
+                        <span id="radius-val-label" style="color:var(--accent-blue)">5.0 km</span>
+                    </label>
+                    <input type="range" id="search-radius-slider" min="0.5" max="30" step="0.5" value="5" oninput="onRadiusSliderInput(this.value)">
+                </div>
+                <div id="targets-list" class="item-list" style="flex:1;"></div>
+                <div style="font-size:11px; color:var(--text-muted); text-align:center; padding-top:4px;" id="center-info">当前未选定目标中心</div>
+            </div>
+        </div>
+
+        <!-- Tab 3: 🤖 智能分组 -->
+        <div id="ai-tab" class="tab-content">
+            <div class="section-card">
+                <div class="section-title"><i class="fa-solid fa-brain"></i> 选择智能选址算法</div>
+                <div class="form-group">
+                    <select id="algo-select" class="form-control" onchange="switchAlgoUI()">
+                        <option value="greedy_cover">🚀 最大半径覆盖模式 (业务首选 - 自动算最少组数)</option>
+                        <option value="kmeans">📊 固定组数聚类模式 (K-Means - 强行划分为 N 组)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="greedy-param">
+                    <label>限制最大通勤半径 (公里)</label>
+                    <input type="number" id="algo-radius" class="form-control" value="5" step="0.5" min="0.1">
+                    <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">算法将扫描全局找到能覆盖最多人的坐标作为 1号中心，依次递推，自动算最少组数，并自动智能标记极偏远孤立人员。</div>
+                </div>
+
+                <div class="form-group" id="kmeans-param" style="display:none;">
+                    <label>强制划分组数 K (个)</label>
+                    <input type="number" id="algo-k" class="form-control" value="3" min="1" max="15">
+                    <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">无论距离多远，强制将 100% 人员无死角划分为指定组数，算法自动寻找几何地理重心。</div>
+                </div>
+
+                <button class="btn btn-warning" onclick="runSmartGrouping()" style="width:100%; padding:11px; font-size:13px;">
+                    <i class="fa-solid fa-bolt"></i> 一键运行 AI 智能决策分组
+                </button>
+            </div>
+
+            <div class="section-card" style="flex:1;">
+                <div class="section-title"><i class="fa-solid fa-square-poll-vertical"></i> 智能分组决策分析报告</div>
+                <div id="report-box" class="report-box" style="flex:1;">
+                    <h4><i class="fa-solid fa-circle-info"></i> 智能分组报告助手</h4>
+                    <p style="color:var(--text-muted)">尚未运行智能分组。请先在【人员管理】中导入人员名单，在此处选择参数并点击“一键运行”。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 4: 统计分析 -->
+        <div id="analysis-tab" class="tab-content">
+            <div class="section-card">
+                <div class="section-title"><i class="fa-solid fa-file-export"></i> 全局数据匹配导出</div>
+                <button class="btn btn-warning" onclick="handleCopyAllOriginalOrder()" style="width:100%;">
+                    <i class="fa-solid fa-copy"></i> 复制全员匹配结果 (原表顺序·Ctrl+V对齐)
+                </button>
+                <button class="btn btn-outline" onclick="handleExportCSV()" style="width:100%;">
+                    <i class="fa-solid fa-download"></i> 导出匹配结果为 CSV 文件
+                </button>
+            </div>
+
+            <div class="section-card" style="flex:1;">
+                <div class="section-header">
+                    <span class="section-title">
+                        <i class="fa-solid fa-street-view"></i> 当前选定圈内人员 (<span id="count">0</span>人)
+                    </span>
+                    <button class="btn btn-success btn-sm" id="copy-btn" onclick="handleCopySingleCircle()" style="display:none;">
+                        <i class="fa-solid fa-clipboard-check"></i> 复制单圈名单
+                    </button>
+                </div>
+                
+                <button class="btn btn-primary btn-sm" id="all-routes-btn" onclick="mapManager.fetchBatchRoutes(tempLatLng || (activeTargetId ? targetPoints.find(t=>t.id===activeTargetId) : null), window.lastResults)" style="display:none; width:100%; margin-bottom:4px;">
+                    <i class="fa-solid fa-route"></i> 规划圈内所有人真实道路驾驶路线 (OSRM)
+                </button>
+
+                <div id="list-content" class="item-list" style="flex:1;">
+                    <div style="color:var(--text-muted); text-align:center; padding:30px 10px;">请先在【目标规划】或【智能分组】中选择一个目标中心</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 右侧地图 -->
+    <div id="map-container">
+        <!-- 浮动工具栏 -->
+        <div class="map-floating-controls">
+            <button class="map-float-btn" onclick="mapManager.fitBoundsToPeople(peopleData)" title="视角缩放到全部人员">
+                <i class="fa-solid fa-expand"></i>
+            </button>
+            <button class="map-float-btn" onclick="mapManager.clearRoutesAndSpokes()" title="清除路线图层">
+                <i class="fa-solid fa-eraser"></i>
+            </button>
+        </div>
+
+        <!-- 地图图例 -->
+        <div class="map-legend">
+            <div style="font-weight:700; margin-bottom:4px;"><i class="fa-solid fa-map-pin"></i> 图例说明</div>
+            <div class="legend-item">
+                <span class="legend-symbol" style="background:#3b82f6;"></span>
+                <span>人员坐标点 (Person)</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-symbol" style="background:#10b981;"></span>
+                <span>中心选址点 (Group Center)</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-symbol" style="border: 2px dashed #f59e0b; background:rgba(245,158,11,0.2);"></span>
+                <span>覆盖服务半径 (Coverage Radius)</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-symbol" style="background:#f43f5e; height:3px; border-radius:0;"></span>
+                <span>OSRM 路线 (Driving Route)</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modular JavaScript Files -->
+<script src="js/config.js"></script>
+<script src="js/geocoder.js"></script>
+<script src="js/algorithms.js"></script>
+<script src="js/map-manager.js"></script>
+<script src="js/exporter.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>

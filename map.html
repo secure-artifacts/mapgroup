@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>海外多地点智能选址与自动分组面板 V5.0 Pro</title>
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- CSV 解析 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            background: #0f172a;
+            color: #f8fafc;
+        }
+        #sidebar {
+            width: 440px;
+            height: 100%;
+            background-color: #1e293b;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+            border-right: 1px solid #334155;
+        }
+        #map-container {
+            flex: 1;
+            height: 100%;
+        }
+        .header-title {
+            padding: 14px 16px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: #fff;
+            font-size: 15px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .tab-box {
+            display: flex;
+            background: #0f172a;
+            border-bottom: 1px solid #334155;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 12px 2px;
+            text-align: center;
+            font-size: 12px;
+            cursor: pointer;
+            font-weight: bold;
+            color: #94a3b8;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            color: #3b82f6;
+            border-bottom-color: #3b82f6;
+            background: #1e293b;
+        }
+        .tab-content {
+            flex: 1;
+            overflow-y: auto;
+            display: none;
+        }
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+        }
+        .section {
+            padding: 12px 15px;
+            border-bottom: 1px solid #334155;
+        }
+        .section-title {
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #f8fafc;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .form-group {
+            margin-bottom: 8px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 11px;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #334155;
+            background: #0f172a;
+            color: #fff;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 12px;
+        }
+        .input-btn-group {
+            display: flex;
+            gap: 5px;
+        }
+        .input-btn-group input {
+            flex: 1;
+        }
+        button {
+            padding: 8px 12px;
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 11px;
+            transition: background-color 0.2s;
+        }
+        button:hover { background-color: #2563eb; }
+        .btn-danger { background-color: #f43f5e; }
+        .btn-danger:hover { background-color: #e11d48; }
+        .btn-success { background-color: #10b981; }
+        .btn-success:hover { background-color: #059669; }
+        .btn-warning { background-color: #f59e0b; color: #fff; }
+        .btn-warning:hover { background-color: #d97706; }
+        .btn-outline { background-color: transparent; color: #3b82f6; border: 1px solid #3b82f6; }
+        .btn-outline.active { background-color: #3b82f6; color: #fff; }
+        
+        .item-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #334155;
+            padding: 5px;
+            border-radius: 6px;
+            background: #0f172a;
+        }
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 8px;
+            border-bottom: 1px solid #1e293b;
+            font-size: 12px;
+        }
+        .target-box {
+            display: flex;
+            align-items: center;
+            padding: 8px 10px;
+            background: #0f172a;
+            margin-bottom: 5px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            gap: 8px;
+            border: 1px solid #334155;
+        }
+        .target-box.active {
+            background-color: rgba(59, 130, 246, 0.15);
+            border-color: #3b82f6;
+        }
+        .person-card {
+            padding: 8px 10px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-size: 12px;
+            position: relative;
+        }
+        .person-card .name { font-weight: bold; color: #f8fafc; }
+        .person-card .dist { color: #f43f5e; font-weight: bold; float: right; }
+        .person-card .addr { color: #94a3b8; font-size: 11px; margin-top: 3px; padding-right: 60px; }
+        .person-card .route-btn {
+            position: absolute; right: 8px; bottom: 8px; padding: 3px 6px; font-size: 10px;
+        }
+        #report-box {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #f8fafc;
+            line-height: 1.5;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <div class="header-title">
+            <span>🗺️ 海外多地点智能选址分组决策系统</span>
+            <span style="font-size:10px; opacity:0.8;">V5.0 Pro</span>
+        </div>
+
+        <!-- 标签导航 -->
+        <div class="tab-box">
+            <div class="tab-btn active" onclick="switchTab('roster-tab')">👥 人员管理</div>
+            <div class="tab-btn" onclick="switchTab('target-tab')">📍 目标规划</div>
+            <div class="tab-btn" onclick="switchTab('ai-tab')">🤖 智能分组</div>
+            <div class="tab-btn" onclick="switchTab('analysis-tab')">📊 统计分析</div>
+        </div>
+
+        <!-- Tab 1: 人员管理 -->
+        <div id="roster-tab" class="tab-content active">
+            <div class="section" style="background-color: #0f172a;">
+                <div class="section-title">
+                    <span>批量导入名单 (CSV)</span>
+                    <div style="display:flex; gap:4px;">
+                        <button class="btn-success" onclick="loadSampleDemoData()" style="padding:3px 6px;">加载示例数据</button>
+                        <button class="btn-danger" onclick="clearAllPeople()" style="padding:3px 6px;">清空全部</button>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <input type="file" id="csv-file" accept=".csv">
+                    <div id="progress-bar" style="font-size:11px; color:#10b981; margin-top:3px;"></div>
+                </div>
+            </div>
+            <div class="section">
+                <div class="section-title">手动添加单个人员</div>
+                <div class="form-group">
+                    <input type="text" id="add-name" placeholder="姓名 (Name)" style="margin-bottom:5px;">
+                    <div class="input-btn-group">
+                        <input type="text" id="add-address" placeholder="具体地址 或 经纬度(Lat,Lng)...">
+                        <button onclick="addSinglePerson()">➕ 添加</button>
+                    </div>
+                    <div id="add-status" style="font-size:11px; color:#10b981; margin-top:3px;"></div>
+                </div>
+            </div>
+            <div class="section" style="flex: 1; display:flex; flex-direction:column;">
+                <div class="section-title">
+                    <span>当前人员名单 (<span id="roster-count">0</span>人)</span>
+                </div>
+                <input type="text" id="roster-search" placeholder="搜索名单内人员..." oninput="filterRoster()" style="width:100%; padding:6px; margin-bottom:8px; box-sizing:border-box;">
+                <div id="roster-list" class="item-list" style="flex: 1; max-height:none;"></div>
+            </div>
+        </div>
+
+        <!-- Tab 2: 目标规划 -->
+        <div id="target-tab" class="tab-content">
+            <div class="section">
+                <div class="section-title">地图底图样式切换</div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <select id="map-tile-select" onchange="switchMapTile()">
+                        <option value="google_road">Google Maps (路线图)</option>
+                        <option value="google_hybrid">Google Maps (卫星图)</option>
+                        <option value="carto_dark">CartoDB Dark (暗黑高对比度)</option>
+                        <option value="osm">OpenStreetMap (开源标准图)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="section">
+                <div class="section-title">1. 地址搜索定位 (图书馆/地标)</div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <div class="input-btn-group">
+                        <input type="text" id="search-address-input" placeholder="输入具体的地址或地点...">
+                        <button onclick="searchTargetAddress()">🔍 搜索</button>
+                    </div>
+                    <div id="search-status" style="font-size:11px; color:#3b82f6;"></div>
+                </div>
+            </div>
+            <div class="section">
+                <div class="section-title">
+                    <span>2. 探针雷达模式 (Hover Search)</span>
+                    <button class="btn-outline" id="probe-btn" onclick="toggleProbeMode()">开启鼠标探测</button>
+                </div>
+                <p style="font-size:11px; color:#94a3b8; margin:0;">开启后，鼠标在地图滑动时会自动探测并显示连线，点击地图可直接锁定该点。</p>
+            </div>
+            <div class="section" style="flex:1; display:flex; flex-direction:column;">
+                <div class="section-title">
+                    <span>3. 已保存目标区域</span>
+                    <button onclick="saveCurrentAsTarget()" style="padding: 3px 6px;">保存为目标</button>
+                </div>
+                <div class="form-group">
+                    <label>设定当前覆盖半径 (公里)</label>
+                    <input type="number" id="search-radius" value="5" step="0.5" min="0.1" oninput="updateActiveTargetRadius()">
+                </div>
+                <div id="targets-list" style="flex:1; overflow-y:auto; border:1px solid #334155; border-radius:6px; padding:5px; background:#0f172a;"></div>
+                <div style="font-size:11px; color:#94a3b8; margin-top:5px;" id="center-info">当前未选定目标中心</div>
+            </div>
+        </div>
+
+        <!-- Tab 3: 🤖 智能分组 -->
+        <div id="ai-tab" class="tab-content">
+            <div class="section">
+                <div class="section-title">1. 选择智能分组方式</div>
+                <div class="form-group">
+                    <select id="algo-select" onchange="switchAlgoUI()">
+                        <option value="greedy_cover">最大半径覆盖模式 (推荐 - 自动算最少组数)</option>
+                        <option value="kmeans">固定组数模式 (K-Means - 强行分出N个组)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="greedy-param">
+                    <label>限制最大通勤半径 (公里)</label>
+                    <input type="number" id="algo-radius" value="5" step="0.5" min="0.1">
+                    <div style="font-size:11px; color:#94a3b8; margin-top:3px;">算法会自动算出最少需要建几个组，并排除过远的边缘孤立人员。</div>
+                </div>
+                <div class="form-group" id="kmeans-param" style="display:none;">
+                    <label>强制划分组数 (个)</label>
+                    <input type="number" id="algo-k" value="3" min="1" max="15">
+                    <div style="font-size:11px; color:#94a3b8; margin-top:3px;">无论住得多远，算法都会强制划分为指定的组数，并寻找全局几何重心。</div>
+                </div>
+                <button class="btn-warning" onclick="runSmartGrouping()" style="width:100%; font-size:12px; margin-top:5px;">⚡ 一键运行智能决策分组</button>
+            </div>
+            
+            <div class="section" style="flex:1; display:flex; flex-direction:column;">
+                <div class="section-title">2. 智能分组建议与分析报告</div>
+                <div id="report-box" style="flex:1;">
+                    还未运行分组。请先导入人员，配置上方参数并点击运行。
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 4: 统计分析 -->
+        <div id="analysis-tab" class="tab-content">
+            <div class="section">
+                <div class="section-title">全局匹配与导出</div>
+                <button class="btn-warning" onclick="copyAllTargetsOriginalOrder()" style="width: 100%; font-size:12px; margin-bottom:5px;">
+                    📋 一键复制全员匹配结果 (保持原表顺序)
+                </button>
+                <button class="btn-outline" onclick="exportCSVResults()" style="width: 100%; font-size:12px;">
+                    📥 导出匹配结果为 CSV
+                </button>
+            </div>
+            <div id="results-container" style="flex:1; display:flex; flex-direction:column; padding:15px 0 0 0;">
+                <div class="section-title" style="padding: 0 15px;">
+                    <span>目标区域内人员 (<span id="count">0</span>人)</span>
+                    <button class="btn-success" id="copy-btn" onclick="copySingleTargetResults()" style="display:none; padding:4px 8px;">复制名单</button>
+                </div>
+                <div style="padding: 0 15px 10px 15px; border-bottom:1px solid #334155;">
+                    <button onclick="fetchAllDrivingRoutes()" id="all-routes-btn" style="width:100%; display:none; background-color:#3b82f6;">🚗 规划范围内所有人路线 (多条同时显示)</button>
+                </div>
+                <div id="list-content" style="flex:1; overflow-y:auto; padding:10px 15px;">
+                    <div style="color:#94a3b8; text-align:center; padding:20px;">请先选择一个地点</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 地图容器 -->
+    <div id="map-container"></div>
+
+    <script>
+        let map = null;
+        let currentTileLayer = null;
+        let peopleData = [];    
+        let targetPoints = [];  
+        let activeTargetId = null; 
+
+        let peopleMarkers = [];
+        let targetMarkers = [];
+        
+        let activeCircle = null; 
+        let allTargetCircles = {}; 
+        let spiderLines = []; 
+        let activeRouteLines = []; 
+        
+        let isProbeMode = false;
+        let probeCircle = null;
+        let probeLines = [];
+        let tempLatLng = null;
+        let tempAddressName = "";
+
+        const COLORS = ['#3b82f6', '#10b981', '#f43f5e', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
+
+        window.onload = function() {
+            initMap();
+            loadSavedData();
+        }
+
+        async function freeGeocode(address) {
+            if (!address || !address.trim()) return null;
+            const coordMatch = address.trim().match(/^([+-]?\d+(?:\.\d+)?)\s*,\s*([+-]?\d+(?:\.\d+)?)$/);
+            if (coordMatch) {
+                return { lat: parseFloat(coordMatch[1]), lng: parseFloat(coordMatch[2]) };
+            }
+            try {
+                const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
+                const resp = await fetch(url, { headers: { 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8' } });
+                const data = await resp.json();
+                if (data && data.length > 0) {
+                    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+                }
+            } catch (e) { console.error("Geocode failure", e); }
+            return null;
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            let activeIdx = 0;
+            if(tabId === 'target-tab') activeIdx = 1;
+            if(tabId === 'ai-tab') activeIdx = 2;
+            if(tabId === 'analysis-tab') activeIdx = 3;
+            document.querySelectorAll('.tab-btn')[activeIdx].classList.add('active');
+            
+            document.getElementById(tabId).classList.add('active');
+            
+            if(isProbeMode && tabId !== 'target-tab') {
+                toggleProbeMode();
+            }
+        }
+
+        function initMap() {
+            map = L.map('map-container').setView([31.2304, 121.4737], 11); 
+            switchMapTile(); 
+
+            map.on('click', function(e) {
+                if (isProbeMode) {
+                    setTempTarget(e.latlng, "探测锁定点");
+                    toggleProbeMode(); 
+                } else {
+                    setTempTarget(e.latlng, "地图点击位置");
+                }
+            });
+
+            map.on('mousemove', function(e) {
+                if (!isProbeMode) return;
+                const radiusKm = parseFloat(document.getElementById('search-radius').value) || 5;
+                const radiusM = radiusKm * 1000;
+
+                if (probeCircle) {
+                    probeCircle.setLatLng(e.latlng);
+                    probeCircle.setRadius(radiusM);
+                } else {
+                    probeCircle = L.circle(e.latlng, {
+                        radius: radiusM,
+                        color: '#f59e0b',
+                        dashArray: '4, 4',
+                        fill: false
+                    }).addTo(map);
+                }
+
+                probeLines.forEach(l => map.removeLayer(l));
+                probeLines = [];
+
+                peopleData.forEach(p => {
+                    const dist = e.latlng.distanceTo(L.latLng(p.lat, p.lng)) / 1000;
+                    if (dist <= radiusKm) {
+                        const l = L.polyline([e.latlng, [p.lat, p.lng]], {
+                            color: '#f59e0b',
+                            weight: 1,
+                            dashArray: '2, 3'
+                        }).addTo(map);
+                        probeLines.push(l);
+                    }
+                });
+            });
+        }
+
+        function toggleProbeMode() {
+            isProbeMode = !isProbeMode;
+            const btn = document.getElementById('probe-btn');
+            if(isProbeMode) {
+                btn.classList.add('active');
+                btn.innerText = "探测中 (点击地图锁定)";
+                map.getContainer().style.cursor = 'crosshair';
+            } else {
+                btn.classList.remove('active');
+                btn.innerText = "开启鼠标探测";
+                map.getContainer().style.cursor = '';
+                if(probeCircle) {
+                    map.removeLayer(probeCircle);
+                    probeCircle = null;
+                }
+                probeLines.forEach(l => map.removeLayer(l));
+                probeLines = [];
+            }
+        }
+
+        function switchMapTile() {
+            const type = document.getElementById('map-tile-select').value;
+            if (currentTileLayer) {
+                map.removeLayer(currentTileLayer);
+            }
+            if (type === 'google_road') {
+                currentTileLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { attribution: '© Google Maps' }).addTo(map);
+            } else if (type === 'google_hybrid') {
+                currentTileLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { attribution: '© Google Maps' }).addTo(map);
+            } else if (type === 'carto_dark') {
+                currentTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© CartoDB' }).addTo(map);
+            } else {
+                currentTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+            }
+        }
+
+        function loadSavedData() {
+            const savedPeople = localStorage.getItem('global_map_people');
+            const savedTargets = localStorage.getItem('global_map_targets');
+            const savedActiveId = localStorage.getItem('global_map_active_id');
+
+            if (savedPeople) {
+                peopleData = JSON.parse(savedPeople);
+                renderPeopleMarkers();
+                renderRosterList();
+            }
+            if (savedTargets) {
+                targetPoints = JSON.parse(savedTargets);
+                targetPoints.forEach(t => { if(t.visible === undefined) t.visible = true; });
+                renderTargetsList();
+                renderAllTargetCircles();
+            }
+            if (savedActiveId) {
+                activeTargetId = parseInt(savedActiveId);
+                selectTarget(activeTargetId);
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('global_map_people', JSON.stringify(peopleData));
+            localStorage.setItem('global_map_targets', JSON.stringify(targetPoints));
+            localStorage.setItem('global_map_active_id', activeTargetId);
+        }
+
+        function loadSampleDemoData() {
+            peopleData = [
+                { name: "张明 (陆家嘴分部)", lat: 31.2397, lng: 121.4998, address: "上海市浦东新区陆家嘴环路" },
+                { name: "李华 (世纪大道)", lat: 31.2291, lng: 121.5283, address: "上海市浦东新区世纪大道100号" },
+                { name: "王伟 (静安寺)", lat: 31.2248, lng: 121.4485, address: "上海市静安区南京西路1688号" },
+                { name: "赵芳 (徐家汇)", lat: 31.1942, lng: 121.4372, address: "上海市徐汇区虹桥路1号" },
+                { name: "陈杰 (人民广场)", lat: 31.2337, lng: 121.4726, address: "上海市黄浦区人民大道200号" },
+                { name: "杨光 (中山公园)", lat: 31.2185, lng: 121.4173, address: "上海市长宁区长宁路1018号" },
+                { name: "马超 (偏远孤立人员)", lat: 31.4052, lng: 121.4893, address: "上海市宝山区牡丹江路1800号" }
+            ];
+            saveData();
+            renderPeopleMarkers();
+            renderRosterList();
+            if (peopleData.length > 0) {
+                const bounds = L.latLngBounds(peopleData.map(p => [p.lat, p.lng]));
+                map.fitBounds(bounds, { padding: [40, 40] });
+            }
+            alert("已成功加载 7 名示范测试人员数据！");
+        }
+
+        function clearAllPeople() {
+            if(confirm("确定清空全部人员数据吗？")) {
+                peopleData = [];
+                saveData();
+                renderPeopleMarkers();
+                renderRosterList();
+                updateResults();
+                document.getElementById('csv-file').value = '';
+                document.getElementById('progress-bar').innerText = '';
+            }
+        }
+
+        async function addSinglePerson() {
+            const name = document.getElementById('add-name').value.trim();
+            const address = document.getElementById('add-address').value.trim();
+            const status = document.getElementById('add-status');
+
+            if (!name || !address) {
+                alert("请输入姓名和地址！");
+                return;
+            }
+            status.innerText = "定位中...";
+
+            const coords = await freeGeocode(address);
+            if(coords) {
+                peopleData.push({ name, lat: coords.lat, lng: coords.lng, address });
+                saveData();
+                renderPeopleMarkers();
+                renderRosterList();
+                status.innerText = `成功添加人员: ${name}`;
+                document.getElementById('add-name').value = '';
+                document.getElementById('add-address').value = '';
+                updateResultsByActiveTarget();
+            } else {
+                status.innerText = "该地址无法定位，请尝试更详细的地址。";
+            }
+        }
+
+        function deletePerson(idx) {
+            peopleData.splice(idx, 1);
+            saveData();
+            renderPeopleMarkers();
+            renderRosterList();
+            updateResultsByActiveTarget();
+        }
+
+        function renderPeopleMarkers() {
+            peopleMarkers.forEach(m => map.removeLayer(m));
+            peopleMarkers = [];
+
+            peopleData.forEach(p => {
+                const marker = L.circleMarker([p.lat, p.lng], {
+                    color: '#3b82f6',
+                    fillColor: '#3b82f6',
+                    fillOpacity: 0.8,
+                    radius: 6
+                }).addTo(map);
+                marker.bindPopup(`<strong>${p.name}</strong><br>${p.address}`);
+                peopleMarkers.push(marker);
+            });
+        }
+
+        function renderRosterList(filterText = '') {
+            const listDiv = document.getElementById('roster-list');
+            listDiv.innerHTML = '';
+            document.getElementById('roster-count').innerText = peopleData.length;
+
+            peopleData.forEach((p, idx) => {
+                if(filterText && !p.name.toLowerCase().includes(filterText.toLowerCase()) && !p.address.toLowerCase().includes(filterText.toLowerCase())) {
+                    return;
+                }
+                const div = document.createElement('div');
+                div.className = 'list-item';
+                div.innerHTML = `
+                    <div style="flex:1;">
+                        <strong>${p.name}</strong> <span style="font-size:10px; color:#94a3b8;">(${p.address.substring(0,25)}...)</span>
+                    </div>
+                    <button class="btn-danger" onclick="deletePerson(${idx})" style="padding:2px 5px; font-size:10px;">🗑️</button>
+                `;
+                listDiv.appendChild(div);
+            });
+        }
+
+        function filterRoster() {
+            const q = document.getElementById('roster-search').value;
+            renderRosterList(q);
+        }
+
+        document.getElementById('csv-file').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                header: false,
+                skipEmptyLines: true,
+                complete: async function(results) {
+                    const rows = results.data;
+                    const tempPeople = [];
+                    const progressBar = document.getElementById('progress-bar');
+                    progressBar.innerText = "导入中...";
+
+                    for (let i = 0; i < rows.length; i++) {
+                        if (i === 0 && (rows[i][0].includes("姓") || rows[i][0].toLowerCase().includes("name"))) {
+                            continue;
+                        }
+                        const name = rows[i][0];
+                        const colB = rows[i][1];
+                        const colC = rows[i][2];
+
+                        if (!name || !colB) continue;
+
+                        const lat = parseFloat(colB);
+                        const lng = parseFloat(colC);
+
+                        if (!isNaN(lat) && !isNaN(lng)) {
+                            tempPeople.push({ name, lat, lng, address: rows[i][3] || "GPS Location" });
+                        } else {
+                            progressBar.innerText = `解析: (${i}/${rows.length}) ${name}`;
+                            const coords = await freeGeocode(colB);
+                            if (coords) {
+                                tempPeople.push({ name, lat: coords.lat, lng: coords.lng, address: colB });
+                            }
+                            await new Promise(resolve => setTimeout(resolve, 300));
+                        }
+                    }
+
+                    peopleData = peopleData.concat(tempPeople);
+                    saveData();
+                    renderPeopleMarkers();
+                    renderRosterList();
+                    progressBar.innerText = `成功导入 ${tempPeople.length} 人！`;
+                    
+                    if (peopleData.length > 0) {
+                        const bounds = L.latLngBounds(peopleData.map(p => [p.lat, p.lng]));
+                        map.fitBounds(bounds); 
+                    }
+                    updateResultsByActiveTarget();
+                }
+            });
+        });
+
+        async function searchTargetAddress() {
+            const query = document.getElementById('search-address-input').value.trim();
+            if (!query) return;
+            const statusDiv = document.getElementById('search-status');
+            statusDiv.innerText = "定位中...";
+
+            const coords = await freeGeocode(query);
+            if (coords) {
+                statusDiv.innerText = "定位成功！";
+                const latlng = L.latLng(coords.lat, coords.lng);
+                map.setView(latlng, 14); 
+                setTempTarget(latlng, query);
+            } else {
+                statusDiv.innerText = "检索未果。";
+            }
+        }
+
+        function setTempTarget(latlng, name = "定位位置") {
+            tempLatLng = latlng;
+            tempAddressName = name;
+            document.getElementById('center-info').innerHTML = `临时选定 (未保存): <br>${name}`;
+            clearRoutes();
+            drawCircle(latlng, parseFloat(document.getElementById('search-radius').value) || 5);
+        }
+
+        function saveCurrentAsTarget() {
+            if (!tempLatLng) {
+                alert("请先选择目标位置！");
+                return;
+            }
+            const name = prompt("请为此地点命名：", tempAddressName);
+            if (!name) return;
+
+            const radius = parseFloat(document.getElementById('search-radius').value) || 5;
+            const color = COLORS[targetPoints.length % COLORS.length];
+
+            const newTarget = {
+                id: Date.now(),
+                name: name,
+                lat: tempLatLng.lat,
+                lng: tempLatLng.lng,
+                radius: radius,
+                color: color,
+                visible: true
+            };
+
+            targetPoints.push(newTarget);
+            activeTargetId = newTarget.id;
+            saveData();
+            renderTargetsList();
+            renderAllTargetCircles();
+            selectTarget(newTarget.id);
+        }
+
+        function renderTargetsList() {
+            const listDiv = document.getElementById('targets-list');
+            listDiv.innerHTML = '';
+
+            targetMarkers.forEach(m => map.removeLayer(m));
+            targetMarkers = [];
+
+            targetPoints.forEach(t => {
+                const isActive = t.id === activeTargetId;
+                const div = document.createElement('div');
+                div.className = `target-box ${isActive ? 'active' : ''}`;
+                
+                div.innerHTML = `
+                    <input type="checkbox" ${t.visible ? 'checked' : ''} onclick="toggleTargetVisibility(${t.id}, event)">
+                    <span onclick="selectTarget(${t.id})" style="flex:1; display:flex; align-items:center; gap:5px;">
+                        <span style="display:inline-block; width:10px; height:10px; background-color:${t.color}; border-radius:50%;"></span>
+                        <strong>${t.name}</strong> (${t.radius}km)
+                    </span>
+                    <span onclick="deleteTarget(${t.id}, event)" style="color:#ff4d4f; font-weight:bold; cursor:pointer; font-size:14px; padding:0 5px;">×</span>
+                `;
+                listDiv.appendChild(div);
+
+                const marker = L.circleMarker([t.lat, t.lng], {
+                    color: t.color,
+                    fillColor: t.color,
+                    fillOpacity: 0.8,
+                    radius: 7
+                }).addTo(map);
+                marker.bindTooltip(t.name, { permanent: true, direction: 'bottom' });
+                marker.on('click', function(e) {
+                    L.DomEvent.stopPropagation(e);
+                    selectTarget(t.id);
+                });
+                targetMarkers.push(marker);
+            });
+        }
+
+        function toggleTargetVisibility(id, event) {
+            event.stopPropagation();
+            const target = targetPoints.find(t => t.id === id);
+            if (target) {
+                target.visible = !target.visible;
+                saveData();
+                renderAllTargetCircles();
+                if(id === activeTargetId && !target.visible && activeCircle) {
+                    map.removeLayer(activeCircle);
+                    activeCircle = null;
+                } else if (id === activeTargetId && target.visible) {
+                    selectTarget(id);
+                }
+            }
+        }
+
+        function renderAllTargetCircles() {
+            for (let key in allTargetCircles) {
+                map.removeLayer(allTargetCircles[key]);
+            }
+            allTargetCircles = {};
+
+            targetPoints.forEach(t => {
+                if (t.visible && t.id !== activeTargetId) { 
+                    const circle = L.circle([t.lat, t.lng], {
+                        radius: t.radius * 1000,
+                        color: t.color,
+                        weight: 2,
+                        fillColor: t.color,
+                        fillOpacity: 0.08
+                    }).addTo(map);
+                    allTargetCircles[t.id] = circle;
+                }
+            });
+        }
+
+        function selectTarget(id) {
+            activeTargetId = id;
+            const target = targetPoints.find(t => t.id === id);
+            if (target) {
+                document.getElementById('search-radius').value = target.radius;
+                document.getElementById('center-info').innerHTML = `当前选定：【${target.name}】`;
+                
+                renderTargetsList();
+                renderAllTargetCircles();
+                clearRoutes();
+                
+                if (target.visible) {
+                    drawCircle(L.latLng(target.lat, target.lng), target.radius, target.color);
+                } else {
+                    if (activeCircle) map.removeLayer(activeCircle);
+                    updateResults(L.latLng(target.lat, target.lng), target.radius);
+                }
+            }
+            saveData();
+        }
+
+        function deleteTarget(id, event) {
+            event.stopPropagation();
+            if (confirm("确定删除该目标区域吗？")) {
+                targetPoints = targetPoints.filter(t => t.id !== id);
+                if (activeTargetId === id) {
+                    activeTargetId = targetPoints.length > 0 ? targetPoints[0].id : null;
+                    if (!activeTargetId && activeCircle) {
+                        map.removeLayer(activeCircle);
+                        activeCircle = null;
+                    }
+                }
+                saveData();
+                renderTargetsList();
+                renderAllTargetCircles();
+                if (activeTargetId) {
+                    selectTarget(activeTargetId);
+                } else {
+                    document.getElementById('center-info').innerText = '当前未选定目标中心';
+                    clearRoutes();
+                    updateResults();
+                }
+            }
+        }
+
+        function updateActiveTargetRadius() {
+            const radius = parseFloat(document.getElementById('search-radius').value) || 5;
+            if (activeTargetId) {
+                const target = targetPoints.find(t => t.id === activeTargetId);
+                if (target) {
+                    target.radius = radius;
+                    saveData();
+                    renderTargetsList();
+                    renderAllTargetCircles();
+                    if (target.visible) {
+                        drawCircle(L.latLng(target.lat, target.lng), radius, target.color);
+                    }
+                }
+            } else if (tempLatLng) {
+                drawCircle(tempLatLng, radius);
+            }
+        }
+
+        function drawCircle(latlng, radiusKm, color = '#3b82f6') {
+            const radiusMeters = radiusKm * 1000;
+            if (activeCircle) {
+                activeCircle.setLatLng(latlng);
+                activeCircle.setRadius(radiusMeters);
+                activeCircle.setStyle({ color: color, fillColor: color });
+            } else {
+                activeCircle = L.circle(latlng, {
+                    color: color,
+                    weight: 3,
+                    fillColor: color,
+                    fillOpacity: 0.12,
+                    radius: radiusMeters
+                }).addTo(map);
+            }
+            updateResults(latlng, radiusKm, color);
+        }
+
+        function clearRoutes() {
+            spiderLines.forEach(l => map.removeLayer(l));
+            spiderLines = [];
+            activeRouteLines.forEach(l => map.removeLayer(l));
+            activeRouteLines = [];
+        }
+
+        function updateResultsByActiveTarget() {
+            if(activeTargetId) {
+                selectTarget(activeTargetId);
+            } else if (tempLatLng) {
+                setTempTarget(tempLatLng, tempAddressName);
+            }
+        }
+
+        function switchAlgoUI() {
+            const algo = document.getElementById('algo-select').value;
+            if (algo === 'greedy_cover') {
+                document.getElementById('greedy-param').style.display = 'block';
+                document.getElementById('kmeans-param').style.display = 'none';
+            } else {
+                document.getElementById('greedy-param').style.display = 'none';
+                document.getElementById('kmeans-param').style.display = 'block';
+            }
+        }
+
+        function runSmartGrouping() {
+            if (peopleData.length === 0) {
+                alert("请先在人员管理中导入名单数据！");
+                return;
+            }
+
+            const algo = document.getElementById('algo-select').value;
+            let computedCenters = [];
+            let reportText = "";
+
+            if (algo === 'greedy_cover') {
+                const radiusKm = parseFloat(document.getElementById('algo-radius').value) || 5;
+                computedCenters = runGreedyCoverAlgorithm(radiusKm);
+
+                const totalPeople = peopleData.length;
+                let coveredCount = 0;
+                computedCenters.forEach(c => coveredCount += c.people.length);
+                const coverRate = ((coveredCount / totalPeople) * 100).toFixed(1);
+                const isolatedCount = totalPeople - coveredCount;
+
+                reportText = `
+                    <strong>【最大覆盖分组报告】</strong><br>
+                    • <strong>设定条件</strong>：通勤半径限 ${radiusKm} 公里内。<br>
+                    • <strong>计算结果</strong>：自动将 ${totalPeople} 人划分为 <strong>${computedCenters.length} 个最佳群组</strong>。<br>
+                    • <strong>覆盖率</strong>：成功覆盖 <strong>${coveredCount}人 (${coverRate}%)</strong>。<br>
+                    • <strong>孤立点提示</strong>：有 <strong>${isolatedCount}人</strong> 因住址过于偏远（${radiusKm}公里内无合适中心），未被纳入任何分组。<br><br>
+                    <strong>💡 运营建议：</strong><br>
+                    1. 已自动在地图上用不同颜色绘制了这 ${computedCenters.length} 个覆盖圈，并向群组成员绘制了辐射线。<br>
+                    2. 对于 ${isolatedCount} 名偏远孤立人员，不建议强行设站，建议提供远程线上沟通或单独跟进。
+                `;
+
+            } else {
+                const k = parseInt(document.getElementById('algo-k').value) || 3;
+                if(k > peopleData.length) {
+                    alert("设定的组数不能大于人员总数！");
+                    return;
+                }
+                computedCenters = runKMeansAlgorithm(k);
+
+                let totalDist = 0;
+                let maxDist = 0;
+                let peopleCount = 0;
+                computedCenters.forEach(c => {
+                    c.people.forEach(p => {
+                        const d = L.latLng(c.lat, c.lng).distanceTo(L.latLng(p.lat, p.lng)) / 1000;
+                        totalDist += d;
+                        if(d > maxDist) maxDist = d;
+                        peopleCount++;
+                    });
+                });
+                const avgDist = (totalDist / peopleCount).toFixed(2);
+
+                reportText = `
+                    <strong>【K-Means 强制分组报告】</strong><br>
+                    • <strong>设定条件</strong>：强制划分 <strong>${k} 个组</strong>。<br>
+                    • <strong>计算结果</strong>：成功在全局范围寻找到了 ${k} 个核心地理中心。<br>
+                    • <strong>平均通勤距离</strong>：组内成员到其地理重心的平均距离为 <strong>${avgDist} 公里</strong>。<br>
+                    • <strong>最大通勤跨度</strong>：最远的一位成员通勤距离达 <strong>${maxDist.toFixed(2)} 公里</strong>。<br><br>
+                    <strong>💡 运营建议：</strong><br>
+                    1. 强制分组已强制将100%人员归档建组。但最大通勤距离偏长（${maxDist.toFixed(2)}公里），边缘人员的通行阻力可能会非常大，请留意差旅补贴。
+                `;
+            }
+
+            targetPoints = [];
+            computedCenters.forEach((c, idx) => {
+                targetPoints.push({
+                    id: idx + 1,
+                    name: c.name,
+                    lat: c.lat,
+                    lng: c.lng,
+                    radius: c.radius,
+                    color: COLORS[idx % COLORS.length],
+                    visible: true
+                });
+            });
+
+            activeTargetId = targetPoints.length > 0 ? targetPoints[0].id : null;
+            saveData();
+            renderTargetsList();
+            renderAllTargetCircles();
+            document.getElementById('report-box').innerHTML = reportText;
+
+            switchTab('analysis-tab');
+            if(activeTargetId) {
+                selectTarget(activeTargetId);
+            }
+        }
+
+        function runGreedyCoverAlgorithm(radiusKm) {
+            let uncovered = [...peopleData];
+            let centers = [];
+            let groupIndex = 1;
+
+            while (uncovered.length > 0) {
+                let bestPerson = null;
+                let bestCoveredPeople = [];
+
+                uncovered.forEach(p => {
+                    let covered = [];
+                    uncovered.forEach(other => {
+                        const dist = L.latLng(p.lat, p.lng).distanceTo(L.latLng(other.lat, other.lng)) / 1000;
+                        if (dist <= radiusKm) {
+                            covered.push(other);
+                        }
+                    });
+
+                    if (covered.length > bestCoveredPeople.length) {
+                        bestCoveredPeople = covered;
+                        bestPerson = p;
+                    }
+                });
+
+                if (bestCoveredPeople.length <= 1) {
+                    break; 
+                }
+
+                centers.push({
+                    name: `覆盖区-${groupIndex}号中心`,
+                    lat: bestPerson.lat,
+                    lng: bestPerson.lng,
+                    radius: radiusKm,
+                    people: bestCoveredPeople
+                });
+
+                const coveredNames = bestCoveredPeople.map(p => p.name);
+                uncovered = uncovered.filter(p => !coveredNames.includes(p.name));
+                groupIndex++;
+            }
+
+            return centers;
+        }
+
+        function runKMeansAlgorithm(k) {
+            let centroids = [];
+            let tempPeople = [...peopleData];
+            for (let i = 0; i < k; i++) {
+                const randIdx = Math.floor(Math.random() * tempPeople.length);
+                const p = tempPeople.splice(randIdx, 1)[0];
+                centroids.push({ lat: p.lat, lng: p.lng });
+            }
+
+            let clusters = [];
+            let iterations = 0;
+            let converged = false;
+
+            while (!converged && iterations < 100) {
+                iterations++;
+                clusters = Array.from({ length: k }, (_, idx) => ({
+                    lat: centroids[idx].lat,
+                    lng: centroids[idx].lng,
+                    people: []
+                }));
+
+                peopleData.forEach(p => {
+                    let minDist = Infinity;
+                    let bestIdx = 0;
+                    centroids.forEach((c, idx) => {
+                        const d = L.latLng(p.lat, p.lng).distanceTo(L.latLng(c.lat, c.lng));
+                        if (d < minDist) {
+                            minDist = d;
+                            bestIdx = idx;
+                        }
+                    });
+                    clusters[bestIdx].people.push(p);
+                });
+
+                let newCentroids = [];
+                converged = true;
+
+                for (let idx = 0; idx < k; idx++) {
+                    const c = clusters[idx];
+                    if (c.people.length === 0) {
+                        const p = peopleData[Math.floor(Math.random() * peopleData.length)];
+                        newCentroids.push({ lat: p.lat, lng: p.lng });
+                        converged = false;
+                        continue;
+                    }
+
+                    let sumLat = 0, sumLng = 0;
+                    c.people.forEach(p => {
+                        sumLat += p.lat;
+                        sumLng += p.lng;
+                    });
+                    const avgLat = sumLat / c.people.length;
+                    const avgLng = sumLng / c.people.length;
+
+                    if (Math.abs(avgLat - centroids[idx].lat) > 0.0001 || Math.abs(avgLng - centroids[idx].lng) > 0.0001) {
+                        converged = false;
+                    }
+                    newCentroids.push({ lat: avgLat, lng: avgLng });
+                }
+
+                centroids = newCentroids;
+            }
+
+            return clusters.map((c, idx) => {
+                let maxR = 0.5;
+                c.people.forEach(p => {
+                    const d = L.latLng(c.lat, c.lng).distanceTo(L.latLng(p.lat, p.lng)) / 1000;
+                    if(d > maxR) maxR = d;
+                });
+
+                return {
+                    name: `强制分组-${idx + 1}组重心`,
+                    lat: c.lat,
+                    lng: c.lng,
+                    radius: parseFloat(maxR.toFixed(1)),
+                    people: c.people
+                };
+            });
+        }
+
+        function updateResults(centerLatLng = null, radiusKm = 0, color = '#3b82f6') {
+            const listContent = document.getElementById('list-content');
+            const copyBtn = document.getElementById('copy-btn');
+            const routesBtn = document.getElementById('all-routes-btn');
+            
+            clearRoutes(); 
+
+            if (!centerLatLng) {
+                document.getElementById('count').innerText = '0';
+                listContent.innerHTML = '<div style="color:#94a3b8; text-align:center; padding:20px;">请先在“目标规划”中选择一个地点</div>';
+                copyBtn.style.display = 'none';
+                routesBtn.style.display = 'none';
+                return;
+            }
+
+            const results = [];
+            peopleData.forEach(p => {
+                const distMeters = centerLatLng.distanceTo(L.latLng(p.lat, p.lng));
+                const distKm = distMeters / 1000;
+                if (distKm <= radiusKm) {
+                    results.push({ name: p.name, lat: p.lat, lng: p.lng, address: p.address, distance: distKm });
+                }
+            });
+
+            results.sort((a, b) => a.distance - b.distance);
+            document.getElementById('count').innerText = results.length;
+
+            if (results.length > 0) {
+                copyBtn.style.display = 'block';
+                routesBtn.style.display = 'block';
+                let html = '';
+                results.forEach((r, idx) => {
+                    html += `
+                        <div class="person-card">
+                            <span class="dist">${r.distance.toFixed(2)} km</span>
+                            <div class="name">${idx + 1}. ${r.name}</div>
+                            <div class="addr">${r.address}</div>
+                            <button class="route-btn" onclick="fetchSingleRoute(${centerLatLng.lat}, ${centerLatLng.lng}, ${r.lat}, ${r.lng})">🚗 路线</button>
+                        </div>
+                    `;
+
+                    const line = L.polyline([centerLatLng, [r.lat, r.lng]], {
+                        color: color,
+                        weight: 1.5,
+                        dashArray: '5, 8',
+                        opacity: 0.6
+                    }).addTo(map);
+                    spiderLines.push(line);
+                });
+                listContent.innerHTML = html;
+            } else {
+                copyBtn.style.display = 'none';
+                routesBtn.style.display = 'none';
+                listContent.innerHTML = '<div style="color:#94a3b8; text-align:center; padding:20px;">当前区域范围内没有人员</div>';
+            }
+
+            window.lastResults = results;
+        }
+
+        async function fetchSingleRoute(centerLat, centerLng, personLat, personLng) {
+            activeRouteLines.forEach(l => map.removeLayer(l));
+            activeRouteLines = [];
+
+            const url = `https://router.project-osrm.org/route/v1/driving/${centerLng},${centerLat};${personLng},${personLat}?geometries=geojson`;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data.routes && data.routes.length > 0) {
+                    const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                    const rLine = L.polyline(coords, {
+                        color: '#ea4335',
+                        weight: 4,
+                        opacity: 0.95
+                    }).addTo(map);
+                    activeRouteLines.push(rLine);
+                    map.fitBounds(rLine.getBounds(), { padding: [50, 50] });
+                }
+            } catch (err) { alert("路线生成失败。"); }
+        }
+
+        async function fetchAllDrivingRoutes() {
+            activeRouteLines.forEach(l => map.removeLayer(l));
+            activeRouteLines = [];
+
+            if (!window.lastResults || window.lastResults.length === 0) return;
+
+            let centerLatLng = null;
+            if (activeTargetId) {
+                const t = targetPoints.find(t => t.id === activeTargetId);
+                if (t) centerLatLng = L.latLng(t.lat, t.lng);
+            } else if (tempLatLng) {
+                centerLatLng = tempLatLng;
+            }
+            if (!centerLatLng) return;
+
+            const maxRoutes = 15; 
+            const count = Math.min(window.lastResults.length, maxRoutes);
+
+            const statusDiv = document.getElementById('search-status');
+            statusDiv.innerText = `正在同时规划 ${count} 条自驾通勤路线...`;
+
+            for (let i = 0; i < count; i++) {
+                const r = window.lastResults[i];
+                const url = `https://router.project-osrm.org/route/v1/driving/${centerLatLng.lng},${centerLatLng.lat};${r.lng},${r.lat}?geometries=geojson`;
+                
+                try {
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    if (data.routes && data.routes.length > 0) {
+                        const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                        const rLine = L.polyline(coords, {
+                            color: '#ea4335',
+                            weight: 2.5,
+                            opacity: 0.85
+                        }).addTo(map);
+                        activeRouteLines.push(rLine);
+                    }
+                    await new Promise(res => setTimeout(res, 100));
+                } catch(e) { console.error(e); }
+            }
+
+            statusDiv.innerText = "多路线绘制完成！";
+            if(activeRouteLines.length > 0) {
+                const group = new L.featureGroup(activeRouteLines);
+                map.fitBounds(group.getBounds(), { padding: [40, 40] });
+            }
+        }
+
+        function copySingleTargetResults() {
+            if (!window.lastResults || window.lastResults.length === 0) return;
+
+            let targetName = "未保存目标";
+            if (activeTargetId) {
+                const target = targetPoints.find(t => t.id === activeTargetId);
+                if (target) targetName = target.name;
+            } else if (tempAddressName) {
+                targetName = tempAddressName;
+            }
+
+            let text = `姓名\t人员地址\t目标地点\t距离(公里)\n`;
+            window.lastResults.forEach(r => {
+                text += `${r.name}\t${r.address}\t${targetName}\t${r.distance.toFixed(2)}\n`;
+            });
+
+            navigator.clipboard.writeText(text).then(() => {
+                alert('单点名单已成功复制！');
+            }).catch(() => { alert('复制失败。'); });
+        }
+
+        function copyAllTargetsOriginalOrder() {
+            if (peopleData.length === 0) {
+                alert("请先导入或添加人员名单！");
+                return;
+            }
+            if (targetPoints.length === 0) {
+                alert("请至少保存一个目标地点！");
+                return;
+            }
+
+            let text = "姓名\t人员地址\t最邻近目标点\t距离(公里)\n";
+
+            peopleData.forEach(p => {
+                let matchedTarget = null;
+                let minDistance = Infinity;
+
+                targetPoints.forEach(t => {
+                    if(!t.visible) return;
+                    const distMeters = L.latLng(p.lat, p.lng).distanceTo(L.latLng(t.lat, t.lng));
+                    const distKm = distMeters / 1000;
+
+                    if (distKm <= t.radius) {
+                        if (distKm < minDistance) {
+                            minDistance = distKm;
+                            matchedTarget = t;
+                        }
+                    }
+                });
+
+                if (matchedTarget) {
+                    text += `${p.name}\t${p.address}\t${matchedTarget.name}\t${minDistance.toFixed(2)}\n`;
+                } else {
+                    text += `${p.name}\t${p.address}\t不在范围内\t-\n`;
+                }
+            });
+
+            navigator.clipboard.writeText(text).then(() => {
+                alert('全员匹配结果已成功复制！');
+            }).catch(() => { alert('复制失败。'); });
+        }
+
+        function exportCSVResults() {
+            if (peopleData.length === 0) {
+                alert("无人员数据可导出。");
+                return;
+            }
+            let rows = [["姓名", "详细地址", "归属组/目标中心", "距离(km)"]];
+            peopleData.forEach(p => {
+                let matchedTarget = null;
+                let minDistance = Infinity;
+
+                targetPoints.forEach(t => {
+                    if(!t.visible) return;
+                    const distMeters = L.latLng(p.lat, p.lng).distanceTo(L.latLng(t.lat, t.lng));
+                    const distKm = distMeters / 1000;
+
+                    if (distKm <= t.radius && distKm < minDistance) {
+                        minDistance = distKm;
+                        matchedTarget = t;
+                    }
+                });
+
+                if (matchedTarget) {
+                    rows.push([p.name, p.address, matchedTarget.name, minDistance.toFixed(2)]);
+                } else {
+                    rows.push([p.name, p.address, "不在范围内", "-"]);
+                }
+            });
+
+            const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + rows.map(e => e.map(cell => `"${cell}"`).join(",")).join("\n");
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `选址分组结果_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
