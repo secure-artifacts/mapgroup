@@ -69,6 +69,22 @@ function toggleTheme() {
     document.getElementById('theme-icon').className = nextTheme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
 }
 
+function togglePersonNameLabels() {
+    const btn = document.getElementById('toggle-names-btn');
+    const currentState = mapManager.showPersonLabels;
+    mapManager.setShowPersonLabels(!currentState);
+
+    if (!currentState) {
+        btn.classList.add('active');
+        btn.innerHTML = '<i class="fa-solid fa-tag"></i> 姓名标签: 显示';
+    } else {
+        btn.classList.remove('active');
+        btn.innerHTML = '<i class="fa-solid fa-tag"></i> 姓名标签: 隐藏';
+    }
+
+    renderAllMapVisuals();
+}
+
 function switchTab(tabId) {
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
@@ -423,6 +439,16 @@ function editTargetName(id, event) {
     }
 }
 
+function changeTargetColor(id, hexColor, event) {
+    if (event) event.stopPropagation();
+    const target = targetPoints.find(t => t.id === id);
+    if (!target) return;
+
+    target.color = hexColor;
+    saveData();
+    renderAllMapVisuals();
+}
+
 function renderTargetsList() {
     const listDiv = document.getElementById('targets-list');
     listDiv.innerHTML = '';
@@ -435,7 +461,7 @@ function renderTargetsList() {
         div.innerHTML = `
             <div style="display:flex; align-items:center; gap:8px; flex:1; overflow:hidden;" onclick="selectTarget(${t.id})">
                 <input type="checkbox" ${t.visible ? 'checked' : ''} onclick="toggleTargetVisibility(${t.id}, event)">
-                <span class="target-dot" style="background-color:${t.color}"></span>
+                <input type="color" class="color-picker-input" value="${t.color}" onclick="event.stopPropagation()" onchange="changeTargetColor(${t.id}, this.value, event)" title="自定义分组主题颜色">
                 <strong style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${t.name}">${t.name}</strong> 
                 <span class="badge badge-amber">${t.radius} km</span>
             </div>

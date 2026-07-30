@@ -36,7 +36,7 @@
                 </div>
                 <div class="brand-text">
                     <h1>智能选址分组决策系统</h1>
-                    <span>V5.0 Pro · GitHub Pages 部署版</span>
+                    <span>V5.0 Pro · 企业级分组可视化面板</span>
                 </div>
             </div>
             <div class="header-actions">
@@ -262,11 +262,15 @@
     <div id="map-container">
         <!-- 浮动工具栏 -->
         <div class="map-floating-controls">
+            <!-- 姓名标签显隐开关 -->
+            <button class="map-float-btn active" id="toggle-names-btn" onclick="togglePersonNameLabels()" title="开启/关闭地图上的常驻姓名标签">
+                <i class="fa-solid fa-tag"></i> 姓名标签: 显示
+            </button>
             <button class="map-float-btn" onclick="mapManager.fitBoundsToPeople(peopleData)" title="视角缩放到全部人员">
-                <i class="fa-solid fa-expand"></i>
+                <i class="fa-solid fa-expand"></i> 适合视角
             </button>
             <button class="map-float-btn" onclick="mapManager.clearRoutesAndSpokes()" title="清除路线图层">
-                <i class="fa-solid fa-eraser"></i>
+                <i class="fa-solid fa-eraser"></i> 清除连线
             </button>
         </div>
 
@@ -275,19 +279,19 @@
             <div style="font-weight:700; margin-bottom:4px;"><i class="fa-solid fa-map-pin"></i> 图例说明</div>
             <div class="legend-item">
                 <span class="legend-symbol" style="background:#3b82f6;"></span>
-                <span>人员坐标点 (Person)</span>
+                <span>人员坐标点 (按归属组配色)</span>
             </div>
             <div class="legend-item">
                 <span class="legend-symbol" style="background:#10b981;"></span>
-                <span>中心选址点 (Group Center)</span>
+                <span>中心选址点 (自定义调色盘)</span>
             </div>
             <div class="legend-item">
                 <span class="legend-symbol" style="border: 2px dashed #f59e0b; background:rgba(245,158,11,0.2);"></span>
-                <span>覆盖服务半径 (Coverage Radius)</span>
+                <span>覆盖服务半径 (Coverage Circle)</span>
             </div>
             <div class="legend-item">
-                <span class="legend-symbol" style="background:#f43f5e; height:3px; border-radius:0;"></span>
-                <span>OSRM 路线 (Driving Route)</span>
+                <span class="legend-symbol" style="border: 1px dashed #f43f5e; background:rgba(244,63,94,0.1);"></span>
+                <span>全组凸包领域 (Territory Hull)</span>
             </div>
         </div>
     </div>

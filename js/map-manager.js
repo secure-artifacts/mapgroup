@@ -1,6 +1,6 @@
 /**
- * Map Manager & Visual Layers (Leaflet & OSRM)
- * Features: Prominent Person Markers with Permanent Name Badges, Dispersed Multi-Spoke Routes, Group Territory Polygons
+ * Map Manager & Enterprise Visual Layers (Leaflet & OSRM)
+ * Features: High-Contrast Group Color Coding, Global Label Toggle, Custom Color Picker, Multi-Spoke Radiating Lines & Territory Polygons
  */
 class MapManager {
     constructor(containerId) {
@@ -17,6 +17,9 @@ class MapManager {
         this.probeCircle = null;
         this.probeLines = [];
         this.isProbeMode = false;
+        
+        // Enterprise UI Settings
+        this.showPersonLabels = true; // Global Toggle for Personnel Name Labels
     }
 
     init(defaultCenter, defaultZoom, onMapClick, onMapMouseMove) {
@@ -36,15 +39,26 @@ class MapManager {
         this.currentTileLayer = L.tileLayer(provider.url, { attribution: provider.attribution }).addTo(this.map);
     }
 
+    setShowPersonLabels(show) {
+        this.showPersonLabels = show;
+    }
+
     /**
-     * Renders prominent personnel markers with permanent name tags attached directly on the map.
+     * Renders Enterprise High-Contrast Personnel Markers.
+     * Inherits group theme color and supports permanent name label toggle.
      */
     renderPeopleMarkers(peopleData, targetPoints = []) {
         this.peopleMarkers.forEach(m => this.map.removeLayer(m));
         this.peopleMarkers = [];
 
-        peopleData.forEach(p => {
-            // Find which group/target this person is closest to or covered by
+        // Build group index map
+        const targetColorMap = {};
+        targetPoints.forEach(t => {
+            if(t.visible) targetColorMap[t.id] = t.color;
+        });
+
+        peopleData.forEach((p, idx) => {
+            // Find which target/group this person belongs to
             let matchedTarget = null;
             let minDistance = Infinity;
 
@@ -57,32 +71,45 @@ class MapManager {
                 }
             });
 
-            const color = matchedTarget ? matchedTarget.color : '#3b82f6';
+            const groupColor = matchedTarget ? matchedTarget.color : '#3b82f6';
             const groupName = matchedTarget ? matchedTarget.name : '未归组';
+            const personIndex = idx + 1;
 
-            // Create high-visibility HTML Marker with permanent name badge
+            // Name label HTML (Shown only if showPersonLabels is TRUE)
+            const nameBadgeHTML = this.showPersonLabels ? `
+                <div class="person-name-badge" style="border-color:${groupColor};">
+                    <i class="fa-solid fa-user" style="color:${groupColor}"></i>
+                    <span>${p.name}</span>
+                </div>
+            ` : '';
+
+            // Icon size & anchor adjustment
+            const iconWidth = this.showPersonLabels ? 150 : 32;
+            const iconHeight = 32;
+
             const customIcon = L.divIcon({
                 className: 'person-custom-marker',
                 html: `
                     <div class="person-marker-wrapper">
-                        <div class="person-marker-dot" style="background-color:${color}; border-color:#ffffff;"></div>
-                        <div class="person-name-badge" style="border-color:${color};">
-                            <i class="fa-solid fa-user"></i>
-                            <span>${p.name}</span>
+                        <div class="person-marker-pin-large" style="background-color:${groupColor};">
+                            ${personIndex}
                         </div>
+                        ${nameBadgeHTML}
                     </div>
                 `,
-                iconSize: [140, 30],
-                iconAnchor: [10, 15]
+                iconSize: [iconWidth, iconHeight],
+                iconAnchor: [16, 16]
             });
 
             const marker = L.marker([p.lat, p.lng], { icon: customIcon }).addTo(this.map);
 
             marker.bindPopup(`
-                <div style="font-size:12px; color:#000; padding:4px;">
-                    <div style="font-weight:bold; font-size:13px; color:${color}">👤 ${p.name}</div>
-                    <div style="color:#666; margin-top:2px;">${p.address}</div>
-                    <div style="margin-top:4px; font-size:11px; color:#888;">归属: <strong>${groupName}</strong> ${minDistance < Infinity ? `(${minDistance.toFixed(2)} km)` : ''}</div>
+                <div style="font-size:12px; color:#000; padding:6px; min-width:160px;">
+                    <div style="font-weight:bold; font-size:14px; color:${groupColor}">👤 ${p.name}</div>
+                    <div style="color:#666; margin-top:3px;">${p.address}</div>
+                    <div style="margin-top:6px; font-size:11px; color:#555; background:#f1f5f9; padding:4px 8px; border-radius:6px;">
+                        归属组: <strong>${groupName}</strong> ${minDistance < Infinity ? `(${minDistance.toFixed(2)} km)` : ''}
+                    </div>
                 </div>
             `);
             this.peopleMarkers.push(marker);
@@ -90,14 +117,13 @@ class MapManager {
     }
 
     /**
-     * Renders prominent Group Center markers with member count badges.
+     * Renders Group Center markers with member count badges and custom theme color.
      */
     renderTargetMarkers(targetPoints, peopleData, onTargetSelect) {
         this.targetMarkers.forEach(m => this.map.removeLayer(m));
         this.targetMarkers = [];
 
-        targetPoints.forEach((t, idx) => {
-            // Count how many people belong to this target
+        targetPoints.forEach((t) => {
             let memberCount = 0;
             peopleData.forEach(p => {
                 const d = L.latLng(p.lat, p.lng).distanceTo(L.latLng(t.lat, t.lng)) / 1000;
@@ -113,12 +139,12 @@ class MapManager {
                         </div>
                         <div class="target-center-title" style="border-color:${t.color};">
                             <span>${t.name}</span>
-                            <span class="target-count-tag">${memberCount}人</span>
+                            <span class="target-count-tag" style="background:${t.color}; color:#fff;">${memberCount}人</span>
                         </div>
                     </div>
                 `,
-                iconSize: [160, 40],
-                iconAnchor: [16, 20]
+                iconSize: [180, 44],
+                iconAnchor: [18, 22]
             });
 
             const marker = L.marker([t.lat, t.lng], { icon: centerIcon }).addTo(this.map);
@@ -186,7 +212,7 @@ class MapManager {
     }
 
     /**
-     * Draws dispersed multi-spoke radiating lines from all centers to ALL assigned group members simultaneously.
+     * Draws dispersed multi-spoke lines for all groups simultaneously with group theme color.
      */
     drawAllGroupSpokeLines(peopleData, targetPoints) {
         this.spiderLines.forEach(l => this.map.removeLayer(l));
@@ -203,7 +229,7 @@ class MapManager {
                         color: t.color,
                         weight: 2,
                         dashArray: '5, 7',
-                        opacity: 0.75
+                        opacity: 0.8
                     }).addTo(this.map);
 
                     line.bindTooltip(`${p.name} -> ${t.name}: ${distKm.toFixed(2)} km`, { sticky: true });
@@ -213,25 +239,19 @@ class MapManager {
         });
     }
 
-    /**
-     * Draws spoke lines for a single active target selection.
-     */
     drawSpokeLines(centerLatLng, results, color = '#3b82f6') {
         results.forEach(r => {
             const line = L.polyline([centerLatLng, [r.lat, r.lng]], {
                 color: color,
                 weight: 2,
                 dashArray: '5, 7',
-                opacity: 0.8
+                opacity: 0.85
             }).addTo(this.map);
             line.bindTooltip(`${r.name}: ${r.distance.toFixed(2)} km`, { sticky: true });
             this.spiderLines.push(line);
         });
     }
 
-    /**
-     * Draws smooth territory polygons (convex hulls) encompassing each group's members.
-     */
     drawGroupTerritoryPolygons(peopleData, targetPoints) {
         this.territoryPolygons.forEach(p => this.map.removeLayer(p));
         this.territoryPolygons = [];
@@ -248,14 +268,13 @@ class MapManager {
             });
 
             if (groupCoords.length >= 3) {
-                // Calculate simple convex hull
                 const hullPoints = this.calculateConvexHull(groupCoords);
                 const polygon = L.polygon(hullPoints, {
                     color: t.color,
                     weight: 1.5,
-                    dashArray: '3, 6',
+                    dashArray: '4, 6',
                     fillColor: t.color,
-                    fillOpacity: 0.08
+                    fillOpacity: 0.1
                 }).addTo(this.map);
                 this.territoryPolygons.push(polygon);
             }
