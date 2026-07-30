@@ -213,6 +213,37 @@ function deletePerson(idx) {
     updateResultsByActiveTarget();
 }
 
+async function editPerson(idx, event) {
+    if(event) event.stopPropagation();
+    const p = peopleData[idx];
+    if(!p) return;
+
+    const newName = prompt("编辑人员姓名：", p.name);
+    if(newName === null) return;
+    
+    const newAddress = prompt("编辑人员地址或 Lat,Lng 坐标：", p.address);
+    if(newAddress === null) return;
+
+    const trimmedName = newName.trim() || p.name;
+    const trimmedAddress = newAddress.trim() || p.address;
+
+    if (trimmedAddress !== p.address) {
+        const coords = await freeGeocode(trimmedAddress);
+        if (coords) {
+            peopleData[idx] = { name: trimmedName, lat: coords.lat, lng: coords.lng, address: trimmedAddress };
+        } else {
+            alert("该地址无法定位，已保留原坐标。");
+            peopleData[idx].name = trimmedName;
+            peopleData[idx].address = trimmedAddress;
+        }
+    } else {
+        peopleData[idx].name = trimmedName;
+    }
+
+    saveData();
+    renderAllMapVisuals();
+}
+
 function renderRosterList(filterText = '') {
     const listDiv = document.getElementById('roster-list');
     listDiv.innerHTML = '';
@@ -229,9 +260,14 @@ function renderRosterList(filterText = '') {
                 <div class="person-name"><i class="fa-solid fa-user-tag" style="color:var(--accent-blue)"></i> ${p.name}</div>
                 <div class="person-addr">${p.address}</div>
             </div>
-            <button class="btn btn-danger btn-sm" onclick="deletePerson(${idx})">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
+            <div style="display:flex; gap:4px;">
+                <button class="btn btn-outline btn-sm" onclick="editPerson(${idx}, event)" title="编辑姓名/地址">
+                    <i class="fa-solid fa-pen"></i>
+                </button>
+                <button class="btn btn-danger btn-sm" onclick="deletePerson(${idx})" title="删除人员">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
         `;
         listDiv.appendChild(div);
     });
@@ -374,6 +410,19 @@ function saveCurrentAsTarget() {
     selectTarget(newTarget.id);
 }
 
+function editTargetName(id, event) {
+    if (event) event.stopPropagation();
+    const target = targetPoints.find(t => t.id === id);
+    if (!target) return;
+
+    const newName = prompt("编辑该目标选址/中心名称：", target.name);
+    if (newName && newName.trim() && newName.trim() !== target.name) {
+        target.name = newName.trim();
+        saveData();
+        renderAllMapVisuals();
+    }
+}
+
 function renderTargetsList() {
     const listDiv = document.getElementById('targets-list');
     listDiv.innerHTML = '';
@@ -384,15 +433,20 @@ function renderTargetsList() {
         div.className = `target-box ${isActive ? 'active' : ''}`;
         
         div.innerHTML = `
-            <div style="display:flex; align-items:center; gap:8px; flex:1;" onclick="selectTarget(${t.id})">
+            <div style="display:flex; align-items:center; gap:8px; flex:1; overflow:hidden;" onclick="selectTarget(${t.id})">
                 <input type="checkbox" ${t.visible ? 'checked' : ''} onclick="toggleTargetVisibility(${t.id}, event)">
                 <span class="target-dot" style="background-color:${t.color}"></span>
-                <strong>${t.name}</strong> 
+                <strong style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${t.name}">${t.name}</strong> 
                 <span class="badge badge-amber">${t.radius} km</span>
             </div>
-            <button class="btn btn-danger btn-sm" onclick="deleteTarget(${t.id}, event)">
-                <i class="fa-solid fa-trash"></i>
-            </button>
+            <div style="display:flex; gap:4px;">
+                <button class="btn btn-outline btn-sm" onclick="editTargetName(${t.id}, event)" title="修改中心名称">
+                    <i class="fa-solid fa-pen"></i>
+                </button>
+                <button class="btn btn-danger btn-sm" onclick="deleteTarget(${t.id}, event)" title="删除中心">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </div>
         `;
         listDiv.appendChild(div);
     });

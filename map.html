@@ -590,6 +590,38 @@
             updateResultsByActiveTarget();
         }
 
+        async function editPerson(idx, event) {
+            if(event) event.stopPropagation();
+            const p = peopleData[idx];
+            if(!p) return;
+
+            const newName = prompt("编辑人员姓名：", p.name);
+            if(newName === null) return;
+            const newAddress = prompt("编辑人员地址或 Lat,Lng 坐标：", p.address);
+            if(newAddress === null) return;
+
+            const trimmedName = newName.trim() || p.name;
+            const trimmedAddress = newAddress.trim() || p.address;
+
+            if (trimmedAddress !== p.address) {
+                const coords = await freeGeocode(trimmedAddress);
+                if (coords) {
+                    peopleData[idx] = { name: trimmedName, lat: coords.lat, lng: coords.lng, address: trimmedAddress };
+                } else {
+                    alert("该地址无法定位，保留原坐标。");
+                    peopleData[idx].name = trimmedName;
+                    peopleData[idx].address = trimmedAddress;
+                }
+            } else {
+                peopleData[idx].name = trimmedName;
+            }
+
+            saveData();
+            renderPeopleMarkers();
+            renderRosterList();
+            updateResultsByActiveTarget();
+        }
+
         function renderPeopleMarkers() {
             peopleMarkers.forEach(m => map.removeLayer(m));
             peopleMarkers = [];
@@ -619,9 +651,12 @@
                 div.className = 'list-item';
                 div.innerHTML = `
                     <div style="flex:1;">
-                        <strong>${p.name}</strong> <span style="font-size:10px; color:#94a3b8;">(${p.address.substring(0,25)}...)</span>
+                        <strong>${p.name}</strong> <span style="font-size:10px; color:#94a3b8;">(${p.address.substring(0,20)}...)</span>
                     </div>
-                    <button class="btn-danger" onclick="deletePerson(${idx})" style="padding:2px 5px; font-size:10px;">🗑️</button>
+                    <div style="display:flex; gap:3px;">
+                        <button onclick="editPerson(${idx}, event)" style="padding:2px 5px; font-size:10px;">✏️</button>
+                        <button class="btn-danger" onclick="deletePerson(${idx})" style="padding:2px 5px; font-size:10px;">🗑️</button>
+                    </div>
                 `;
                 listDiv.appendChild(div);
             });
@@ -739,6 +774,21 @@
             selectTarget(newTarget.id);
         }
 
+        function editTargetName(id, event) {
+            if(event) event.stopPropagation();
+            const target = targetPoints.find(t => t.id === id);
+            if(!target) return;
+
+            const newName = prompt("编辑该目标选址/中心名称：", target.name);
+            if(newName && newName.trim() && newName.trim() !== target.name) {
+                target.name = newName.trim();
+                saveData();
+                renderTargetsList();
+                renderAllTargetCircles();
+                if(id === activeTargetId) selectTarget(id);
+            }
+        }
+
         function renderTargetsList() {
             const listDiv = document.getElementById('targets-list');
             listDiv.innerHTML = '';
@@ -753,11 +803,14 @@
                 
                 div.innerHTML = `
                     <input type="checkbox" ${t.visible ? 'checked' : ''} onclick="toggleTargetVisibility(${t.id}, event)">
-                    <span onclick="selectTarget(${t.id})" style="flex:1; display:flex; align-items:center; gap:5px;">
-                        <span style="display:inline-block; width:10px; height:10px; background-color:${t.color}; border-radius:50%;"></span>
-                        <strong>${t.name}</strong> (${t.radius}km)
+                    <span onclick="selectTarget(${t.id})" style="flex:1; display:flex; align-items:center; gap:5px; overflow:hidden;">
+                        <span style="display:inline-block; width:10px; height:10px; background-color:${t.color}; border-radius:50%; flex-shrink:0;"></span>
+                        <strong style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${t.name}">${t.name}</strong> (${t.radius}km)
                     </span>
-                    <span onclick="deleteTarget(${t.id}, event)" style="color:#ff4d4f; font-weight:bold; cursor:pointer; font-size:14px; padding:0 5px;">×</span>
+                    <div style="display:flex; gap:3px;">
+                        <button onclick="editTargetName(${t.id}, event)" style="padding:2px 5px; font-size:10px;">✏️</button>
+                        <span onclick="deleteTarget(${t.id}, event)" style="color:#ff4d4f; font-weight:bold; cursor:pointer; font-size:14px; padding:0 3px;">×</span>
+                    </div>
                 `;
                 listDiv.appendChild(div);
 
