@@ -92,19 +92,28 @@ function loadSavedData() {
 
     if (savedPeople) {
         peopleData = JSON.parse(savedPeople);
-        mapManager.renderPeopleMarkers(peopleData);
-        renderRosterList();
     }
     if (savedTargets) {
         targetPoints = JSON.parse(savedTargets);
         targetPoints.forEach(t => { if(t.visible === undefined) t.visible = true; });
-        renderTargetsList();
-        mapManager.renderAllTargetCircles(targetPoints, activeTargetId);
     }
+
+    renderAllMapVisuals();
+
     if (savedActiveId) {
         activeTargetId = parseInt(savedActiveId);
         selectTarget(activeTargetId);
     }
+}
+
+function renderAllMapVisuals() {
+    renderRosterList();
+    renderTargetsList();
+    mapManager.renderPeopleMarkers(peopleData, targetPoints);
+    mapManager.renderTargetMarkers(targetPoints, peopleData, selectTarget);
+    mapManager.renderAllTargetCircles(targetPoints, activeTargetId);
+    mapManager.drawAllGroupSpokeLines(peopleData, targetPoints);
+    mapManager.drawGroupTerritoryPolygons(peopleData, targetPoints);
 }
 
 function saveData() {
@@ -156,18 +165,16 @@ function updateGlobalStats() {
 function loadSampleDemoData() {
     peopleData = [...APP_CONFIG.SAMPLE_PEOPLE];
     saveData();
-    mapManager.renderPeopleMarkers(peopleData);
-    renderRosterList();
+    renderAllMapVisuals();
     mapManager.fitBoundsToPeople(peopleData);
-    alert("已成功加载 11 名示范人员数据！您现在可以尝试点击【智能分组】体验自动算法选址。");
+    alert("已成功加载 11 名示范人员数据！地图已生成常驻姓名标签与高亮定位。");
 }
 
 function clearAllPeople() {
     if(confirm("确定要清空所有已导入的人员数据吗？")) {
         peopleData = [];
         saveData();
-        mapManager.renderPeopleMarkers(peopleData);
-        renderRosterList();
+        renderAllMapVisuals();
         updateResults();
         document.getElementById('csv-file-input').value = '';
         document.getElementById('csv-status').innerText = '';
@@ -189,8 +196,7 @@ async function addSinglePerson() {
     if(coords) {
         peopleData.push({ name, lat: coords.lat, lng: coords.lng, address });
         saveData();
-        mapManager.renderPeopleMarkers(peopleData);
-        renderRosterList();
+        renderAllMapVisuals();
         status.innerText = `✅ 成功添加人员: ${name}`;
         document.getElementById('add-name').value = '';
         document.getElementById('add-address').value = '';
@@ -203,8 +209,7 @@ async function addSinglePerson() {
 function deletePerson(idx) {
     peopleData.splice(idx, 1);
     saveData();
-    mapManager.renderPeopleMarkers(peopleData);
-    renderRosterList();
+    renderAllMapVisuals();
     updateResultsByActiveTarget();
 }
 
@@ -237,7 +242,7 @@ function filterRoster() {
     renderRosterList(q);
 }
 
-// CSV Event listener
+// CSV Upload event
 document.getElementById('csv-file-input').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -283,8 +288,7 @@ document.getElementById('csv-file-input').addEventListener('change', function(e)
 
             peopleData = peopleData.concat(tempPeople);
             saveData();
-            mapManager.renderPeopleMarkers(peopleData);
-            renderRosterList();
+            renderAllMapVisuals();
             statusDiv.innerText = `🎉 成功解析并导入 ${tempPeople.length} 名人员数据！`;
             mapManager.fitBoundsToPeople(peopleData);
             updateResultsByActiveTarget();
@@ -292,7 +296,6 @@ document.getElementById('csv-file-input').addEventListener('change', function(e)
     });
 });
 
-// 探针雷达开关
 function toggleProbeMode() {
     mapManager.isProbeMode = !mapManager.isProbeMode;
     const btn = document.getElementById('probe-btn');
@@ -367,16 +370,13 @@ function saveCurrentAsTarget() {
     targetPoints.push(newTarget);
     activeTargetId = newTarget.id;
     saveData();
-    renderTargetsList();
-    mapManager.renderAllTargetCircles(targetPoints, activeTargetId);
+    renderAllMapVisuals();
     selectTarget(newTarget.id);
 }
 
 function renderTargetsList() {
     const listDiv = document.getElementById('targets-list');
     listDiv.innerHTML = '';
-
-    mapManager.renderTargetMarkers(targetPoints, selectTarget);
 
     targetPoints.forEach(t => {
         const isActive = t.id === activeTargetId;
@@ -404,7 +404,7 @@ function toggleTargetVisibility(id, event) {
     if (target) {
         target.visible = !target.visible;
         saveData();
-        mapManager.renderAllTargetCircles(targetPoints, activeTargetId);
+        renderAllMapVisuals();
         if(id === activeTargetId && !target.visible) {
             mapManager.clearActiveCircle();
         } else if (id === activeTargetId && target.visible) {
@@ -422,8 +422,7 @@ function selectTarget(id) {
         document.getElementById('center-info').innerHTML = `当前选定：【<strong>${target.name}</strong>】`;
         
         renderTargetsList();
-        mapManager.renderAllTargetCircles(targetPoints, activeTargetId);
-        mapManager.clearRoutesAndSpokes();
+        renderAllMapVisuals();
         
         if (target.visible) {
             drawCircle(L.latLng(target.lat, target.lng), target.radius, target.color);
@@ -444,8 +443,7 @@ function deleteTarget(id, event) {
             if (!activeTargetId) mapManager.clearActiveCircle();
         }
         saveData();
-        renderTargetsList();
-        mapManager.renderAllTargetCircles(targetPoints, activeTargetId);
+        renderAllMapVisuals();
         if (activeTargetId) {
             selectTarget(activeTargetId);
         } else {
@@ -463,8 +461,7 @@ function updateActiveTargetRadius() {
         if (target) {
             target.radius = radius;
             saveData();
-            renderTargetsList();
-            mapManager.renderAllTargetCircles(targetPoints, activeTargetId);
+            renderAllMapVisuals();
             if (target.visible) {
                 drawCircle(L.latLng(target.lat, target.lng), radius, target.color);
             }
@@ -571,8 +568,7 @@ function runSmartGrouping() {
 
     activeTargetId = targetPoints.length > 0 ? targetPoints[0].id : null;
     saveData();
-    renderTargetsList();
-    mapManager.renderAllTargetCircles(targetPoints, activeTargetId);
+    renderAllMapVisuals();
     document.getElementById('report-box').innerHTML = reportHTML;
 
     switchTab('analysis-tab');
@@ -586,8 +582,6 @@ function updateResults(centerLatLng = null, radiusKm = 0, color = '#3b82f6') {
     const copyBtn = document.getElementById('copy-btn');
     const routesBtn = document.getElementById('all-routes-btn');
     
-    mapManager.clearRoutesAndSpokes(); 
-
     if (!centerLatLng) {
         document.getElementById('count').innerText = '0';
         listContent.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding:30px 10px;">请先选择或创建一个目标中心</div>';
@@ -626,7 +620,6 @@ function updateResults(centerLatLng = null, radiusKm = 0, color = '#3b82f6') {
                 </div>
             `;
         });
-        mapManager.drawSpokeLines(centerLatLng, results, color);
         listContent.innerHTML = html;
     } else {
         copyBtn.style.display = 'none';
