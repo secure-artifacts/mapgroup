@@ -507,6 +507,45 @@ async function addSinglePerson() {
     }
 }
 
+/**
+ * 手动添加单个人员 - 智能解包剪贴板数据并填入输入框
+ */
+async function pasteSinglePersonFromClipboard() {
+    try {
+        if (!navigator.clipboard || !navigator.clipboard.readText) {
+            alert('请直接在姓名或地址输入框内按 Ctrl+V 粘贴！');
+            return;
+        }
+        const text = await navigator.clipboard.readText();
+        if (!text || !text.trim()) {
+            alert('📋 当前剪贴板无内容！\n请先在表格或 Excel 中复制单元格数据。');
+            return;
+        }
+        const lines = text.trim().split(/\r?\n/).filter(Boolean);
+        if (lines.length > 1) {
+            if (confirm(`📋 剪贴板中检测到 ${lines.length} 行表格数据！\n是否直接批量导入？`)) {
+                importFromRawText(text);
+            }
+            return;
+        }
+        const row = (lines[0].includes('\t') ? lines[0].split('\t') : lines[0].split(',')).map(c => c.trim()).filter(Boolean);
+        if (row.length >= 3) {
+            if (document.getElementById('add-group')) document.getElementById('add-group').value = row[0];
+            document.getElementById('add-name').value = row[1];
+            document.getElementById('add-address').value = row[2];
+        } else if (row.length === 2) {
+            document.getElementById('add-name').value = row[0];
+            document.getElementById('add-address').value = row[1];
+        } else {
+            document.getElementById('add-name').value = lines[0];
+        }
+        const status = document.getElementById('add-status');
+        if (status) status.innerText = `📋 已自动将剪贴板内容拆分填入框内，点击“添加”按钮完成定位！`;
+    } catch (e) {
+        alert('读取剪贴板受限，请在姓名或地址框内按 Ctrl+V 粘贴！');
+    }
+}
+
 function deletePerson(idx) {
     peopleData.splice(idx, 1);
     rebuildGroupMeta();
@@ -1512,3 +1551,45 @@ function copyTargetAreaPeople(targetId, event) {
         });
     }).catch(() => { alert('复制失败，请重试。'); });
 }
+
+// 初始化给【手动添加单个人员】输入框绑定粘贴拆分监听
+document.addEventListener('DOMContentLoaded', () => {
+    const addNameInput = document.getElementById('add-name');
+    const addGroupInput = document.getElementById('add-group');
+    const addAddrInput = document.getElementById('add-address');
+
+    function handleInputPaste(e) {
+        const text = (e.clipboardData || window.clipboardData)?.getData('text');
+        if (!text) return;
+
+        if (text.includes('\t') || text.includes('\n')) {
+            const lines = text.trim().split(/\r?\n/).filter(Boolean);
+            if (lines.length > 1) {
+                e.preventDefault();
+                if (confirm(`📋 检测到您粘贴了 ${lines.length} 行表格数据！\n是否直接导入这 ${lines.length} 名人员？`)) {
+                    importFromRawText(text);
+                }
+                return;
+            }
+
+            const row = lines[0].split('\t').map(c => c.trim()).filter(Boolean);
+            if (row.length >= 2) {
+                e.preventDefault();
+                if (row.length >= 3) {
+                    if (addGroupInput) addGroupInput.value = row[0];
+                    if (addNameInput) addNameInput.value = row[1];
+                    if (addAddrInput) addAddrInput.value = row[2];
+                } else {
+                    if (addNameInput) addNameInput.value = row[0];
+                    if (addAddrInput) addAddrInput.value = row[1];
+                }
+                const status = document.getElementById('add-status');
+                if (status) status.innerText = `📋 已自动智能拆分填入框内，点击“添加”即可发布！`;
+            }
+        }
+    }
+
+    if (addNameInput) addNameInput.addEventListener('paste', handleInputPaste);
+    if (addAddrInput) addAddrInput.addEventListener('paste', handleInputPaste);
+    if (addGroupInput) addGroupInput.addEventListener('paste', handleInputPaste);
+});
