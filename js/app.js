@@ -1956,22 +1956,34 @@ function runSmartGrouping() {
     }
 
     const algo = document.getElementById('algo-select').value;
+    const useAnchors = document.getElementById('algo-anchor-toggle')?.checked && targetPoints.length > 0;
+    const anchors = useAnchors ? targetPoints.filter(t => t.visible).map(t => ({
+        lat: t.lat,
+        lng: t.lng,
+        radius: t.radius,
+        name: t.name,
+        color: t.color
+    })) : [];
+
     let computedCenters = []; 
     let reportHTML = "";
 
     if (algo === 'greedy_cover') {
         const radiusKm = parseFloat(document.getElementById('algo-radius').value) || 5;
-        computedCenters = runGreedyCoverAlgorithm(peopleData, radiusKm);
+        computedCenters = runGreedyCoverAlgorithm(peopleData, radiusKm, anchors);
 
         const totalPeople = peopleData.length;
         let coveredCount = 0;
         computedCenters.forEach(c => coveredCount += c.people.length);
         const coverRate = ((coveredCount / totalPeople) * 100).toFixed(1);
         const isolatedCount = totalPeople - coveredCount;
+        const anchorCount = computedCenters.filter(c => c.isAnchor).length;
+        const newCount = computedCenters.length - anchorCount;
 
         reportHTML = `
             <h4><i class="fa-solid fa-chart-line"></i> 【最大覆盖模式】 AI 智能决策报告</h4>
             <div class="report-item">• <strong>约束条件</strong>：单中心通勤半径 <= ${radiusKm} km。</div>
+            ${anchorCount > 0 ? `<div class="report-item">• <strong>固定锚点</strong>：保留 <strong style="color:var(--accent-emerald)">${anchorCount} 个已有中心</strong>不动，算法额外计算了 <strong style="color:var(--accent-blue)">${newCount} 个新中心</strong>。</div>` : ''}
             <div class="report-item">• <strong>计算结果</strong>：自动将 ${totalPeople} 人划分为 <strong style="color:var(--accent-blue)">${computedCenters.length} 个最佳覆盖中心</strong>。</div>
             <div class="report-item">• <strong>有效覆盖率</strong>：涵盖 <strong style="color:var(--accent-emerald)">${coveredCount} 人 (${coverRate}%)</strong>。</div>
             <div class="report-item">• <strong>离群孤立点</strong>：有 <strong style="color:var(--accent-rose)">${isolatedCount} 人</strong> 偏离社区，${radiusKm}km内无合适中心，建议单独线上联络。</div>
@@ -1987,7 +1999,11 @@ function runSmartGrouping() {
             alert("设定的分组数 K 不能大于人员总数！");
             return;
         }
-        computedCenters = runKMeansAlgorithm(peopleData, k);
+        if(useAnchors && anchors.length >= k) {
+            alert(`已有 ${anchors.length} 个固定锚点，但分组数仅为 ${k}。请增大分组数（至少 > ${anchors.length}），或关闭锚点开关。`);
+            return;
+        }
+        computedCenters = runKMeansAlgorithm(peopleData, k, anchors);
 
         let totalDist = 0;
         let maxDist = 0;
@@ -2001,10 +2017,13 @@ function runSmartGrouping() {
             });
         });
         const avgDist = (totalDist / peopleCount).toFixed(2);
+        const anchorCount = computedCenters.filter(c => c.isAnchor).length;
+        const newCount = computedCenters.length - anchorCount;
 
         reportHTML = `
             <h4><i class="fa-solid fa-diagram-project"></i> 【K-Means 聚类】 AI 强制分组报告</h4>
             <div class="report-item">• <strong>约束条件</strong>：强行无死角划分为 <strong style="color:var(--accent-purple)">${k} 个核心分组</strong>。</div>
+            ${anchorCount > 0 ? `<div class="report-item">• <strong>固定锚点</strong>：保留 <strong style="color:var(--accent-emerald)">${anchorCount} 个已有中心</strong>位置与半径不变，算法补充计算了 <strong style="color:var(--accent-blue)">${newCount} 个新中心</strong>。</div>` : ''}
             <div class="report-item">• <strong>计算结果</strong>：成功在全局收敛寻找到 ${k} 个最佳几何坐标重心。</div>
             <div class="report-item">• <strong>平均通勤距离</strong>：组员到重心的平均直线距离为 <strong>${avgDist} km</strong>。</div>
             <div class="report-item">• <strong>最大通勤跨度</strong>：组内最远人员距离达 <strong style="color:var(--accent-rose)">${maxDist.toFixed(2)} km</strong>。</div>
@@ -2023,7 +2042,7 @@ function runSmartGrouping() {
             lat: c.lat,
             lng: c.lng,
             radius: c.radius,
-            color: APP_CONFIG.COLORS[idx % APP_CONFIG.COLORS.length],
+            color: c.color || APP_CONFIG.COLORS[idx % APP_CONFIG.COLORS.length],
             visible: true
         });
     });

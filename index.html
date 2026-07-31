@@ -372,6 +372,19 @@
                     <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">无论距离多远，强制将 100% 人员无死角划分为指定组数。</div>
                 </div>
 
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; padding:8px 10px; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.25); border-radius:8px;">
+                    <span style="font-size:12px; font-weight:600; color:var(--accent-emerald);">
+                        <i class="fa-solid fa-anchor"></i> 锁定已保存中心作为固定锚点
+                    </span>
+                    <label class="switch-toggle" style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <input type="checkbox" id="algo-anchor-toggle" checked>
+                        <span style="font-size:11px; color:var(--accent-emerald); width:50px; text-align:right; display:inline-block;" id="anchor-toggle-text">已开启</span>
+                    </label>
+                </div>
+                <div id="anchor-hint" style="font-size:11px; color:var(--text-muted); margin-bottom:10px; padding:4px 8px; background:rgba(16,185,129,0.05); border-radius:6px;">
+                    💡 开启后，已保存的目标中心将作为固定锚点参与分组，算法只补充计算剩余的新中心。
+                </div>
+
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; padding:8px 10px; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.25); border-radius:8px;">
                     <span style="font-size:12px; font-weight:600; color:var(--accent-amber);">
                         <i class="fa-solid fa-eye"></i> 动态实时预览模式
