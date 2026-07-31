@@ -337,6 +337,18 @@ class MapManager {
 
         el.addEventListener('pointerdown', onPointerDown, { passive: false });
         el.addEventListener('mousedown', onPointerDown, { passive: false });
+
+        // 恢复普通点击选中功能：不按任何快捷键，直接点击分组水滴即可选中该分组
+        let clickBlocked = false;
+        el.addEventListener('pointerdown', () => { clickBlocked = false; });
+        el.addEventListener('pointermove', () => { clickBlocked = true; });
+        el.addEventListener('click', (e) => {
+            if (clickBlocked) return; // 拖拽过程中不触发点击
+            e.stopPropagation(); // 阻止冒泡到地图点击
+            if (typeof onTargetSelect === 'function') {
+                onTargetSelect(targetId);
+            }
+        });
     }
 
     /**
