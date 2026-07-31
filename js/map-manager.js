@@ -477,4 +477,13 @@ class MapManager {
             this.map.fitBounds(bounds, { padding: [60, 60] });
         }
     }
+
+    fitBoundsToTargets(targetPoints) {
+        if (targetPoints && targetPoints.length > 0) {
+            const bounds = L.latLngBounds(targetPoints.map(t => [t.lat, t.lng]));
+            if (bounds.isValid()) {
+                this.map.fitBounds(bounds, { padding: [60, 60] });
+            }
+        }
+    }
 }

@@ -935,7 +935,9 @@ window.submitPasteModal = submitPasteModal;
 window.onTempRadiusInput = onTempRadiusInput;
 window.quickSetTempRadius = quickSetTempRadius;
 window.editTargetRadius = editTargetRadius;
-console.log('[PasteSystem] 💡 app.js (v2.3) 已成功加载并绑定全局半径与 pasteModal 接口！');
+window.switchSearchMode = switchSearchMode;
+window.batchSearchTargetAddresses = batchSearchTargetAddresses;
+console.log('[PasteSystem] 💡 app.js (v2.4) 已成功加载并绑定批量选址定位接口！');
 
 /**
  * 解析原始文本并导入（支持从 Google Sheets / Excel 复制的数据，列由 Tab/逗号 切分）
@@ -1126,6 +1128,29 @@ function toggleProbeMode() {
     }
 }
 
+function switchSearchMode(mode) {
+    const singlePanel = document.getElementById('single-search-panel');
+    const batchPanel = document.getElementById('batch-search-panel');
+    const singleBtn = document.getElementById('search-mode-single-btn');
+    const batchBtn = document.getElementById('search-mode-batch-btn');
+
+    if (mode === 'single') {
+        singlePanel.style.display = 'block';
+        batchPanel.style.display = 'none';
+        singleBtn.style.background = 'var(--accent-blue)';
+        singleBtn.style.color = '#fff';
+        batchBtn.style.background = 'transparent';
+        batchBtn.style.color = 'var(--text-muted)';
+    } else {
+        singlePanel.style.display = 'none';
+        batchPanel.style.display = 'block';
+        batchBtn.style.background = 'var(--accent-blue)';
+        batchBtn.style.color = '#fff';
+        singleBtn.style.background = 'transparent';
+        singleBtn.style.color = 'var(--text-muted)';
+    }
+}
+
 async function searchTargetAddress() {
     const query = document.getElementById('search-address-input').value.trim();
     if (!query) return;
@@ -1141,6 +1166,69 @@ async function searchTargetAddress() {
     } else {
         statusDiv.innerText = "❌ 检索未果，请尝试更准确的名称。";
     }
+}
+
+async function batchSearchTargetAddresses() {
+    const textarea = document.getElementById('batch-address-input');
+    if (!textarea) return;
+    const text = textarea.value.trim();
+    if (!text) {
+        alert('请先在框内粘贴或输入多个选址地址（一行一个）！');
+        return;
+    }
+
+    const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    if (lines.length === 0) {
+        alert('未检测到有效的地址行！');
+        return;
+    }
+
+    const statusDiv = document.getElementById('search-status');
+    statusDiv.innerText = `⏳ 开始批量解析 ${lines.length} 个选址目标地址...`;
+
+    let successCount = 0;
+    let failCount = 0;
+    const radius = currentTempRadius || 5.0;
+
+    for (let i = 0; i < lines.length; i++) {
+        const addressName = lines[i];
+        statusDiv.innerText = `🌍 批量定位中 (${i + 1}/${lines.length}): ${addressName}...`;
+
+        const coords = await freeGeocode(addressName);
+        if (coords) {
+            const color = APP_CONFIG.COLORS[targetPoints.length % APP_CONFIG.COLORS.length];
+            const newTarget = {
+                id: Date.now() + i,
+                name: addressName.length > 18 ? addressName.substring(0, 18) + '...' : addressName,
+                address: addressName,
+                lat: coords.lat,
+                lng: coords.lng,
+                radius: radius,
+                color: color,
+                visible: true
+            };
+            targetPoints.push(newTarget);
+            activeTargetId = newTarget.id;
+            successCount++;
+        } else {
+            failCount++;
+        }
+
+        if (i < lines.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+        }
+    }
+
+    saveData();
+    renderAllMapVisuals();
+
+    if (targetPoints.length > 0) {
+        mapManager.fitBoundsToTargets(targetPoints);
+    }
+
+    let msg = `🎉 批量导入完成！成功解析保存 ${successCount} 个选址中心`;
+    if (failCount > 0) msg += ` (${failCount} 个地址检索未果)`;
+    statusDiv.innerText = msg;
 }
 
 function setTempTarget(latlng, name = "定位位置") {
