@@ -334,9 +334,11 @@ class MapManager {
                 const isAlt = window.isAltKeyPressed || window.isShiftKeyPressed || upEvt.altKey || upEvt.shiftKey;
 
                 if (!isAlt && hasMoved) {
-                    if (typeof onTargetMove === 'function') {
-                        onTargetMove(targetId, finalLatLng.lat, finalLatLng.lng, true);
-                    }
+                    requestAnimationFrame(() => {
+                        if (typeof onTargetMove === 'function') {
+                            onTargetMove(targetId, finalLatLng.lat, finalLatLng.lng, true);
+                        }
+                    });
                 }
             };
 
@@ -354,10 +356,18 @@ class MapManager {
      * Renders Group Center markers with member count badges and custom theme color.
      */
     renderTargetMarkers(targetPoints, peopleData, onTargetSelect, onTargetMove, onTargetResize) {
-        this.targetMarkers.forEach(m => this.map.removeLayer(m));
+        if (this.targetMarkers && this.targetMarkers.length > 0) {
+            this.targetMarkers.forEach(m => {
+                if (m) {
+                    m.off();
+                    this.map.removeLayer(m);
+                }
+            });
+        }
         this.targetMarkers = [];
 
         targetPoints.forEach((t) => {
+            if (!t.visible) return;
             let memberCount = 0;
             peopleData.forEach(p => {
                 const d = L.latLng(p.lat, p.lng).distanceTo(L.latLng(t.lat, t.lng)) / 1000;
