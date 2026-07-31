@@ -270,8 +270,19 @@ class MapManager {
 
             const marker = L.marker([t.lat, t.lng], { 
                 icon: centerIcon,
-                draggable: true 
+                draggable: true,
+                autoPan: true
             }).addTo(this.map);
+
+            if (marker.dragging) {
+                marker.dragging.enable();
+            }
+
+            const el = marker.getElement();
+            if (el) {
+                L.DomEvent.disableClickPropagation(el);
+                L.DomEvent.disableScrollPropagation(el);
+            }
 
             let dragStartLatLng = L.latLng(t.lat, t.lng);
             let dragStartRadius = t.radius;
@@ -357,7 +368,8 @@ class MapManager {
                     weight: isActive ? 3 : 2,
                     dashArray: isActive ? null : '5, 5',
                     fillColor: t.color,
-                    fillOpacity: isActive ? 0.18 : 0.12
+                    fillOpacity: isActive ? 0.18 : 0.12,
+                    interactive: false
                 }).addTo(this.map);
                 this.allTargetCircles[t.id] = circle;
             }
