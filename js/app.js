@@ -59,6 +59,9 @@ window.onload = function() {
     // Load saved Geoapify API Key
     if (typeof loadGeoapifyKey === 'function') loadGeoapifyKey();
 
+    // Load saved Google Maps API Key
+    if (typeof loadGoogleMapsKey === 'function') loadGoogleMapsKey();
+
     loadSavedData();
     updateGlobalStats();
 };

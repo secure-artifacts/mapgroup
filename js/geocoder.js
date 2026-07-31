@@ -197,7 +197,32 @@ async function _nominatimSearch(query, countryCode) {
 
 // ======================== Google Places API (Nearby Search) ========================
 
-const GOOGLE_PLACES_API_KEY = 'AIzaSyBsb5UbRx5S8GYjeTJhAeTAVXahK3nlR4I';
+/**
+ * Get saved Google Maps API Key
+ */
+function getGoogleMapsKey() {
+    const input = document.getElementById('google-maps-api-key');
+    return input ? input.value.trim() : (localStorage.getItem('google_maps_api_key') || '');
+}
+
+/**
+ * Save Google Maps API Key to localStorage
+ */
+function saveGoogleMapsKey() {
+    const key = getGoogleMapsKey();
+    localStorage.setItem('google_maps_api_key', key);
+}
+
+/**
+ * Load saved Google Maps API Key on page load
+ */
+function loadGoogleMapsKey() {
+    const saved = localStorage.getItem('google_maps_api_key');
+    if (saved) {
+        const input = document.getElementById('google-maps-api-key');
+        if (input) input.value = saved;
+    }
+}
 
 /**
  * 搜索指定经纬度附近的公共聚会场所 (Google Places Nearby Search - New API)
@@ -208,6 +233,12 @@ const GOOGLE_PLACES_API_KEY = 'AIzaSyBsb5UbRx5S8GYjeTJhAeTAVXahK3nlR4I';
  * @returns {Promise<Array>} - 场所列表
  */
 async function searchNearbyPlaces(lat, lng, radiusMeters, placeTypes) {
+    const apiKey = getGoogleMapsKey();
+    if (!apiKey) {
+        alert('请先在【目标规划】面板中配置 Google Maps API Key！');
+        return [];
+    }
+
     const url = 'https://places.googleapis.com/v1/places:searchNearby';
 
     const body = {
@@ -226,7 +257,7 @@ async function searchNearbyPlaces(lat, lng, radiusMeters, placeTypes) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-Goog-Api-Key': GOOGLE_PLACES_API_KEY,
+                'X-Goog-Api-Key': apiKey,
                 'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.types,places.googleMapsUri'
             },
             body: JSON.stringify(body)
