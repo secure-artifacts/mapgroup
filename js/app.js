@@ -916,6 +916,12 @@ function submitPasteModal() {
     importFromRawText(text);
 }
 
+// 显式挂载到 window 作用域，确保 onclick 内联事件绝对可访问
+window.openPasteModal = openPasteModal;
+window.closePasteModal = closePasteModal;
+window.previewPasteText = previewPasteText;
+window.submitPasteModal = submitPasteModal;
+
 /**
  * 解析原始文本并导入（支持从 Google Sheets / Excel 复制的数据，列由 Tab/逗号 切分）
  */
