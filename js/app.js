@@ -1057,7 +1057,7 @@ window.clearNearbyVenues = clearNearbyVenues;
 // ======================== 附近聚会场所推荐 ========================
 
 /**
- * 搜索当前选中分组中心附近的聚会场所
+ * 搜索当前选中分组中心附近的聚会场所，并按「对全组最便利」智能排序
  */
 async function searchNearbyVenues() {
     if (!activeTargetId) {
@@ -1068,10 +1068,22 @@ async function searchNearbyVenues() {
     const target = targetPoints.find(t => t.id === activeTargetId);
     if (!target) return;
 
+    // 找出该组覆盖范围内的所有成员
+    const centerLatLng = L.latLng(target.lat, target.lng);
+    const groupMembers = peopleData.filter(p => {
+        const dist = centerLatLng.distanceTo(L.latLng(p.lat, p.lng)) / 1000;
+        return dist <= target.radius;
+    });
+
+    if (groupMembers.length === 0) {
+        alert(`${target.name} 覆盖范围内没有成员，无法计算最佳场所。`);
+        return;
+    }
+
     const btn = document.getElementById('search-venues-btn');
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 搜索中...';
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在智能搜索排序...';
     }
 
     // 搜索半径：取分组覆盖半径 (km) 转为米，最小5km最大50km
@@ -1094,20 +1106,45 @@ async function searchNearbyVenues() {
             }
             mapManager.clearPlaceMarkers();
         } else {
-            // 在地图上渲染场所标记
-            mapManager.renderPlaceMarkers(places, target);
+            // 核心：为每个场所计算 "对全组的便利度"
+            const rankedPlaces = places.map(place => {
+                let totalDist = 0;
+                let maxDist = 0;
+                let minDist = Infinity;
 
-            // 在面板中渲染场所列表
-            renderVenuesList(places, target);
+                groupMembers.forEach(member => {
+                    const d = _haversineDistance(member.lat, member.lng, place.lat, place.lng);
+                    totalDist += d;
+                    if (d > maxDist) maxDist = d;
+                    if (d < minDist) minDist = d;
+                });
+
+                return {
+                    ...place,
+                    avgDistToMembers: totalDist / groupMembers.length,
+                    maxDistToMembers: maxDist,
+                    minDistToMembers: minDist,
+                    memberCount: groupMembers.length
+                };
+            });
+
+            // 按平均距离排序（最近 = 最便利）
+            rankedPlaces.sort((a, b) => a.avgDistToMembers - b.avgDistToMembers);
+
+            // 在地图上渲染场所标记
+            mapManager.renderPlaceMarkers(rankedPlaces, target);
+
+            // 在面板中渲染智能排序推荐列表
+            renderVenuesList(rankedPlaces, target);
         }
     } catch (e) {
         console.error('搜索附近场所出错:', e);
-        alert('搜索附近场所时出现网络错误，请检查 API Key 或网络连接。');
+        alert('搜索附近场所时出现网络错误，请检查 Google Maps API Key 或网络连接。');
     }
 
     if (btn) {
         btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-map-location-dot"></i> 搜索附近聚会场所';
+        btn.innerHTML = '<i class="fa-solid fa-map-location-dot"></i> 智能推荐聚会场所';
     }
 }
 
@@ -1124,42 +1161,70 @@ function clearNearbyVenues() {
 }
 
 /**
- * 渲染附近场所列表到面板
+ * 渲染智能排序推荐的聚会场所列表
  */
 function renderVenuesList(places, target) {
     const panel = document.getElementById('venues-results');
     if (!panel) return;
 
+    const medals = ['🏆', '🥈', '🥉'];
+
     let html = `<div style="font-weight:700; font-size:13px; margin-bottom:8px; color:var(--accent-purple);">
-        <i class="fa-solid fa-location-dot"></i> ${target.name} 附近找到 ${places.length} 个聚会场所
+        <i class="fa-solid fa-ranking-star"></i> ${target.name} 附近 ${places.length} 个场所智能排序
         <button class="btn btn-outline btn-sm" onclick="clearNearbyVenues()" style="float:right; font-size:10px; padding:2px 8px;">
             <i class="fa-solid fa-xmark"></i> 清除
         </button>
+    </div>
+    <div style="font-size:10px; color:var(--text-muted); margin-bottom:8px;">
+        🧠 按「对全组 ${places[0]?.memberCount || 0} 位成员平均通勤最短」排序
     </div>`;
 
     places.forEach((place, idx) => {
-        const distText = place.distance < 1000
-            ? `${Math.round(place.distance)}m`
-            : `${(place.distance / 1000).toFixed(1)}km`;
+        const medal = idx < 3 ? medals[idx] : `#${idx + 1}`;
+        const avgText = _formatDist(place.avgDistToMembers);
+        const maxText = _formatDist(place.maxDistToMembers);
+        const minText = _formatDist(place.minDistToMembers);
+        const centerDistText = _formatDist(place.distance);
 
-        html += `<div class="venue-item" style="
-            padding:8px 10px; margin-bottom:4px; border-radius:8px; cursor:pointer;
-            background:rgba(139,92,246,0.06); border:1px solid rgba(139,92,246,0.15);
-            transition:background 0.2s;
-        " onmouseenter="this.style.background='rgba(139,92,246,0.15)'"
-           onmouseleave="this.style.background='rgba(139,92,246,0.06)'"
+        const isTop = idx < 3;
+        const borderColor = isTop ? 'rgba(139,92,246,0.4)' : 'rgba(139,92,246,0.15)';
+        const bgColor = idx === 0 ? 'rgba(139,92,246,0.12)' : 'rgba(139,92,246,0.04)';
+
+        html += `<div style="
+            padding:10px 12px; margin-bottom:6px; border-radius:10px; cursor:pointer;
+            background:${bgColor}; border:1px solid ${borderColor};
+            transition:all 0.2s;
+        " onmouseenter="this.style.background='rgba(139,92,246,0.18)'; this.style.transform='translateX(2px)'"
+           onmouseleave="this.style.background='${bgColor}'; this.style.transform='none'"
            onclick="mapManager.map.setView([${place.lat}, ${place.lng}], 15); mapManager.placeMarkers[${idx}]?.openPopup();">
-            <div style="font-weight:600; font-size:12px;">${place.typeLabel} ${place.name}</div>
-            <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${place.address}</div>
-            <div style="font-size:11px; color:var(--accent-purple); margin-top:2px; font-weight:600;">📏 距离: ${distText}
-                <a href="https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}" target="_blank"
-                   style="float:right; font-size:10px; color:var(--accent-blue); text-decoration:none;">🔗 Google Maps</a>
+            <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                <span style="font-size:${isTop ? '18' : '13'}px;">${medal}</span>
+                <span style="font-weight:700; font-size:13px; flex:1;">${place.typeLabel} ${place.name}</span>
+            </div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">${place.address}</div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; font-size:11px; font-weight:600;">
+                <span style="color:var(--accent-purple);">👥 平均 ${avgText}</span>
+                <span style="color:var(--accent-rose);">📐 最远 ${maxText}</span>
+                <span style="color:var(--accent-emerald);">📍 最近 ${minText}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+                <span style="font-size:10px; color:var(--text-muted);">距中心 ${centerDistText}</span>
+                <a href="${place.googleMapsUri || `https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}`}" target="_blank"
+                   style="font-size:10px; color:var(--accent-blue); text-decoration:none;" onclick="event.stopPropagation();">🔗 Google Maps</a>
             </div>
         </div>`;
     });
 
     panel.innerHTML = html;
     panel.style.display = 'block';
+}
+
+/**
+ * 格式化距离显示
+ */
+function _formatDist(meters) {
+    if (meters < 1000) return `${Math.round(meters)}m`;
+    return `${(meters / 1000).toFixed(1)}km`;
 }
 
 console.log('[PasteSystem] 💡 app.js (v2.6) 已成功加载并绑定全范围 500km 数字/滑块双模调控接口！');

@@ -464,39 +464,53 @@ class MapManager {
         if (!places || places.length === 0) return;
 
         places.forEach((place, idx) => {
+            const medals = ['🏆', '🥈', '🥉'];
+            const medalLabel = idx < 3 ? medals[idx] : `${idx + 1}`;
+            const isTop = idx < 3;
+            const bgGradient = idx === 0 ? '#f59e0b, #f97316' : (isTop ? '#8b5cf6, #a78bfa' : '#6b7280, #9ca3af');
+
             const icon = L.divIcon({
                 className: 'place-marker-icon',
                 html: `<div style="
                     display:flex; align-items:center; justify-content:center;
-                    width:30px; height:30px; border-radius:50%;
-                    background:linear-gradient(135deg, #8b5cf6, #a78bfa);
-                    border:2px solid #fff; box-shadow:0 2px 8px rgba(139,92,246,0.5);
-                    color:#fff; font-size:14px; cursor:pointer;
-                ">${place.typeLabel.split(' ')[0]}</div>`,
-                iconSize: [30, 30],
-                iconAnchor: [15, 15]
+                    width:${isTop ? 36 : 28}px; height:${isTop ? 36 : 28}px; border-radius:50%;
+                    background:linear-gradient(135deg, ${bgGradient});
+                    border:2px solid #fff; box-shadow:0 2px 10px rgba(139,92,246,0.6);
+                    color:#fff; font-size:${isTop ? 16 : 12}px; font-weight:700; cursor:pointer;
+                ">${medalLabel}</div>`,
+                iconSize: [isTop ? 36 : 28, isTop ? 36 : 28],
+                iconAnchor: [isTop ? 18 : 14, isTop ? 18 : 14]
             });
 
             const distText = place.distance < 1000
                 ? `${Math.round(place.distance)}m`
                 : `${(place.distance / 1000).toFixed(1)}km`;
 
+            // 成员距离统计（如果有）
+            const memberStats = place.avgDistToMembers
+                ? `<div style="font-size:12px; color:#8b5cf6; font-weight:600; margin-top:4px;">
+                    👥 ${place.memberCount}位成员平均 ${place.avgDistToMembers < 1000 ? Math.round(place.avgDistToMembers) + 'm' : (place.avgDistToMembers/1000).toFixed(1) + 'km'}
+                    · 最远 ${place.maxDistToMembers < 1000 ? Math.round(place.maxDistToMembers) + 'm' : (place.maxDistToMembers/1000).toFixed(1) + 'km'}
+                   </div>`
+                : '';
+
             const marker = L.marker([place.lat, place.lng], {
                 icon: icon,
-                zIndexOffset: 15000
+                zIndexOffset: isTop ? 16000 : 15000
             }).addTo(this.map);
 
             marker.bindPopup(`
-                <div style="min-width:200px; font-family:sans-serif;">
-                    <div style="font-weight:700; font-size:14px; margin-bottom:4px;">${place.typeLabel} ${place.name}</div>
+                <div style="min-width:220px; font-family:sans-serif;">
+                    <div style="font-weight:700; font-size:15px; margin-bottom:4px;">${idx < 3 ? medals[idx] + ' ' : ''}${place.typeLabel} ${place.name}</div>
                     <div style="font-size:12px; color:#666; margin-bottom:4px;">${place.address}</div>
-                    <div style="font-size:12px; color:#8b5cf6; font-weight:600;">📏 距${centerTarget ? centerTarget.name : '中心'}: ${distText}</div>
+                    <div style="font-size:12px; color:#666;">📏 距中心: ${distText}</div>
+                    ${memberStats}
                     <div style="margin-top:6px;">
                         <a href="${place.googleMapsUri || `https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}`}" target="_blank" 
                            style="font-size:11px; color:#3b82f6; text-decoration:none;">🔗 在 Google Maps 中查看</a>
                     </div>
                 </div>
-            `, { maxWidth: 280 });
+            `, { maxWidth: 300 });
 
             this.placeMarkers.push(marker);
         });
