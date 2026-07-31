@@ -939,10 +939,11 @@ window.switchSearchMode = switchSearchMode;
 window.batchSearchTargetAddresses = batchSearchTargetAddresses;
 window.syncAlgoRadiusInput = syncAlgoRadiusInput;
 window.syncAlgoRadiusSlider = syncAlgoRadiusSlider;
+window.syncAlgoKInput = syncAlgoKInput;
 window.syncAlgoKSlider = syncAlgoKSlider;
 window.toggleAlgoPreviewMode = toggleAlgoPreviewMode;
 window.applySmartGroupingPreview = applySmartGroupingPreview;
-console.log('[PasteSystem] 💡 app.js (v2.5) 已成功加载并绑定智能分组动态预览接口！');
+console.log('[PasteSystem] 💡 app.js (v2.6) 已成功加载并绑定全范围 500km 数字/滑块双模调控接口！');
 
 /**
  * 解析原始文本并导入（支持从 Google Sheets / Excel 复制的数据，列由 Tab/逗号 切分）
@@ -1249,7 +1250,9 @@ function onTempRadiusInput(val) {
     const label = document.getElementById('temp-radius-val-label');
     if (label) label.innerText = `${currentTempRadius.toFixed(1)} km`;
     const slider = document.getElementById('temp-radius-slider');
-    if (slider && slider.value !== val.toString()) slider.value = currentTempRadius;
+    if (slider && slider.value !== currentTempRadius.toString()) slider.value = currentTempRadius;
+    const numberInput = document.getElementById('temp-radius-number');
+    if (numberInput && numberInput.value !== currentTempRadius.toString()) numberInput.value = currentTempRadius;
 
     // 若当前存在临时搜索定位中心（未保存为目标点），实时以独占半径重绘其覆盖圆
     if (tempLatLng && !activeTargetId) {
@@ -1263,8 +1266,60 @@ function quickSetTempRadius(km) {
 }
 
 function onRadiusSliderInput(val) {
-    document.getElementById('radius-val-label').innerText = `${parseFloat(val).toFixed(1)} km`;
+    const r = parseFloat(val) || 5.0;
+    document.getElementById('radius-val-label').innerText = `${r.toFixed(1)} km`;
+    const slider = document.getElementById('search-radius-slider');
+    if (slider && slider.value !== r.toString()) slider.value = r;
+    const numberInput = document.getElementById('search-radius-number');
+    if (numberInput && numberInput.value !== r.toString()) numberInput.value = r;
+
     updateActiveTargetRadius();
+}
+
+function selectTarget(id) {
+    activeTargetId = id;
+    const target = targetPoints.find(t => t.id === id);
+    if (target) {
+        const slider = document.getElementById('search-radius-slider');
+        if (slider) slider.value = target.radius;
+        const numberInput = document.getElementById('search-radius-number');
+        if (numberInput) numberInput.value = target.radius;
+        const label = document.getElementById('radius-val-label');
+        if (label) label.innerText = `${target.radius.toFixed(1)} km`;
+        document.getElementById('center-info').innerHTML = `当前选定：【<strong>${target.name}</strong>】 (专属半径: ${target.radius} km)`;
+        
+        renderTargetsList();
+        renderAllMapVisuals();
+        
+        if (target.visible) {
+            drawCircle(L.latLng(target.lat, target.lng), target.radius, target.color);
+        } else {
+            mapManager.clearActiveCircle();
+            updateResults(L.latLng(target.lat, target.lng), target.radius);
+        }
+    }
+    saveData();
+}
+
+function updateActiveTargetRadius() {
+    const numberInput = document.getElementById('search-radius-number');
+    const sliderInput = document.getElementById('search-radius-slider');
+    const radius = parseFloat(numberInput ? numberInput.value : sliderInput.value) || 5;
+
+    if (activeTargetId) {
+        const target = targetPoints.find(t => t.id === activeTargetId);
+        if (target) {
+            target.radius = radius;
+            saveData();
+            renderAllMapVisuals();
+            if (target.visible) {
+                drawCircle(L.latLng(target.lat, target.lng), radius, target.color);
+            }
+        }
+    } else if (tempLatLng) {
+        currentTempRadius = radius;
+        drawCircle(tempLatLng, radius);
+    }
 }
 
 function saveCurrentAsTarget() {
@@ -1616,8 +1671,22 @@ function syncAlgoRadiusSlider(val) {
     }
 }
 
+function syncAlgoKInput(val) {
+    const k = parseInt(val) || 3;
+    const label = document.getElementById('algo-k-val-label');
+    if (label) label.innerText = `${k} 组`;
+    const slider = document.getElementById('algo-k-slider');
+    if (slider) slider.value = k;
+
+    if (isAlgoPreviewMode) {
+        triggerAlgoLivePreview();
+    }
+}
+
 function syncAlgoKSlider(val) {
     const k = parseInt(val) || 3;
+    const input = document.getElementById('algo-k-input');
+    if (input) input.value = k;
     const label = document.getElementById('algo-k-val-label');
     if (label) label.innerText = `${k} 组`;
 

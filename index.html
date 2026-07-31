@@ -274,11 +274,12 @@
 
                 <div style="margin-top:8px; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.1);">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                        <span style="font-size:11px; color:var(--text-muted);">设定默认覆盖半径:</span>
+                        <span style="font-size:11px; color:var(--text-muted);">设定默认覆盖半径 (公里):</span>
                         <span id="temp-radius-val-label" style="font-size:11px; font-weight:700; color:var(--accent-blue);">5.0 km</span>
                     </div>
                     <div style="display:flex; align-items:center; gap:6px;">
-                        <input type="range" id="temp-radius-slider" min="0.5" max="200" step="0.5" value="5" oninput="onTempRadiusInput(this.value)" style="flex:1;">
+                        <input type="number" id="temp-radius-number" class="form-control" value="5" step="0.5" min="0.1" max="500" oninput="onTempRadiusInput(this.value)" style="width:75px; font-size:11px; padding:3px; text-align:center;" title="键盘直接输入精准公里数">
+                        <input type="range" id="temp-radius-slider" min="0.5" max="500" step="0.5" value="5" oninput="onTempRadiusInput(this.value)" style="flex:1;">
                         <button class="btn btn-outline btn-sm" onclick="quickSetTempRadius(3)" style="padding:2px 6px; font-size:10px;">3km</button>
                         <button class="btn btn-outline btn-sm" onclick="quickSetTempRadius(5)" style="padding:2px 6px; font-size:10px;">5km</button>
                         <button class="btn btn-outline btn-sm" onclick="quickSetTempRadius(10)" style="padding:2px 6px; font-size:10px;">10km</button>
@@ -304,11 +305,14 @@
                     </button>
                 </div>
                 <div class="form-group">
-                    <label>
-                        <span>设定所选中心独立半径 (公里)</span>
-                        <span id="radius-val-label" style="color:var(--accent-blue)">5.0 km</span>
-                    </label>
-                    <input type="range" id="search-radius-slider" min="0.5" max="500" step="0.5" value="5" oninput="onRadiusSliderInput(this.value)">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <span style="font-size:12px; font-weight:600;">设定所选中心独立半径 (公里):</span>
+                        <span id="radius-val-label" style="font-size:12px; font-weight:700; color:var(--accent-blue)">5.0 km</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input type="number" id="search-radius-number" class="form-control" value="5" step="0.5" min="0.1" max="500" oninput="onRadiusSliderInput(this.value)" style="width:80px; font-size:12px; padding:3px 6px; text-align:center;" title="敲击键盘直接修改当前中心半径">
+                        <input type="range" id="search-radius-slider" min="0.5" max="500" step="0.5" value="5" oninput="onRadiusSliderInput(this.value)" style="flex:1;">
+                    </div>
                 </div>
                 <div id="targets-list" class="item-list" style="flex:1;"></div>
                 <div id="targets-batch-bar" style="display:none; padding:6px 0; display:flex; gap:4px; flex-wrap:wrap; justify-content:center; border-top:1px solid rgba(255,255,255,0.06); margin-top:6px; padding-top:8px;">
@@ -349,10 +353,10 @@
                         <span id="algo-radius-val-label" style="font-size:12px; font-weight:700; color:var(--accent-amber);">5.0 km</span>
                     </div>
                     <div style="display:flex; align-items:center; gap:8px;">
-                        <input type="number" id="algo-radius" class="form-control" value="5" step="0.5" min="0.1" oninput="syncAlgoRadiusInput(this.value)" style="width:80px;">
-                        <input type="range" id="algo-radius-slider" min="0.5" max="50" step="0.5" value="5" oninput="syncAlgoRadiusSlider(this.value)" style="flex:1;">
+                        <input type="number" id="algo-radius" class="form-control" value="5" step="0.5" min="0.1" max="500" oninput="syncAlgoRadiusInput(this.value)" style="width:85px; font-size:12px; padding:3px 6px; text-align:center;">
+                        <input type="range" id="algo-radius-slider" min="0.5" max="500" step="0.5" value="5" oninput="syncAlgoRadiusSlider(this.value)" style="flex:1;">
                     </div>
-                    <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">拖拽滑块即可在地图上实时预览选址覆盖效果，自动计算最少组数。</div>
+                    <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">支持输入最高 500km 或拖动滑块实时预览覆盖效果。</div>
                 </div>
 
                 <div class="form-group" id="kmeans-param" style="display:none;">
@@ -360,7 +364,10 @@
                         <label style="margin:0;">强制划分组数 K (个)</label>
                         <span id="algo-k-val-label" style="font-size:12px; font-weight:700; color:var(--accent-purple);">3 组</span>
                     </div>
-                    <input type="range" id="algo-k-slider" min="1" max="15" step="1" value="3" oninput="syncAlgoKSlider(this.value)" style="width:100%;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input type="number" id="algo-k-input" class="form-control" value="3" min="1" max="15" oninput="syncAlgoKInput(this.value)" style="width:75px; font-size:12px; padding:3px 6px; text-align:center;">
+                        <input type="range" id="algo-k-slider" min="1" max="15" step="1" value="3" oninput="syncAlgoKSlider(this.value)" style="flex:1;">
+                    </div>
                     <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">无论距离多远，强制将 100% 人员无死角划分为指定组数。</div>
                 </div>
 
@@ -493,7 +500,7 @@
 <script src="js/algorithms.js"></script>
 <script src="js/map-manager.js"></script>
 <script src="js/exporter.js"></script>
-<script src="js/app.js?v=2.5"></script>
+<script src="js/app.js?v=2.6"></script>
 
 </body>
 </html>
