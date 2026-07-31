@@ -253,6 +253,18 @@
                         </button>
                     </div>
                     <div id="search-status" style="font-size:11px; color:var(--accent-blue);"></div>
+                    <div style="margin-top:8px; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.1);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                            <span style="font-size:11px; color:var(--text-muted);">搜索中心独占覆盖半径:</span>
+                            <span id="temp-radius-val-label" style="font-size:11px; font-weight:700; color:var(--accent-blue);">5.0 km</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <input type="range" id="temp-radius-slider" min="0.5" max="200" step="0.5" value="5" oninput="onTempRadiusInput(this.value)" style="flex:1;">
+                            <button class="btn btn-outline btn-sm" onclick="quickSetTempRadius(3)" style="padding:2px 6px; font-size:10px;">3km</button>
+                            <button class="btn btn-outline btn-sm" onclick="quickSetTempRadius(5)" style="padding:2px 6px; font-size:10px;">5km</button>
+                            <button class="btn btn-outline btn-sm" onclick="quickSetTempRadius(10)" style="padding:2px 6px; font-size:10px;">10km</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -275,10 +287,10 @@
                 </div>
                 <div class="form-group">
                     <label>
-                        <span>设定当前覆盖半径 (公里)</span>
+                        <span>设定所选中心独立半径 (公里)</span>
                         <span id="radius-val-label" style="color:var(--accent-blue)">5.0 km</span>
                     </label>
-                    <input type="range" id="search-radius-slider" min="1" max="500" step="1" value="5" oninput="onRadiusSliderInput(this.value)">
+                    <input type="range" id="search-radius-slider" min="0.5" max="500" step="0.5" value="5" oninput="onRadiusSliderInput(this.value)">
                 </div>
                 <div id="targets-list" class="item-list" style="flex:1;"></div>
                 <div id="targets-batch-bar" style="display:none; padding:6px 0; display:flex; gap:4px; flex-wrap:wrap; justify-content:center; border-top:1px solid rgba(255,255,255,0.06); margin-top:6px; padding-top:8px;">
@@ -439,7 +451,7 @@
 <script src="js/algorithms.js"></script>
 <script src="js/map-manager.js"></script>
 <script src="js/exporter.js"></script>
-<script src="js/app.js?v=2.2"></script>
+<script src="js/app.js?v=2.3"></script>
 
 </body>
 </html>

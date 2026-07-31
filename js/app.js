@@ -7,6 +7,7 @@ let targetPoints = [];
 let activeTargetId = null;
 let tempLatLng = null;
 let tempAddressName = "";
+let currentTempRadius = 5.0; // Current exclusive radius for temporary search/probe location
 
 // Group metadata: { groupName: { color, visible } }
 let groupMeta = {};
@@ -931,7 +932,10 @@ window.openPasteModal = openPasteModal;
 window.closePasteModal = closePasteModal;
 window.previewPasteText = previewPasteText;
 window.submitPasteModal = submitPasteModal;
-console.log('[PasteSystem] 💡 app.js (v2.1) 已成功加载并绑定全局 pasteModal 接口！');
+window.onTempRadiusInput = onTempRadiusInput;
+window.quickSetTempRadius = quickSetTempRadius;
+window.editTargetRadius = editTargetRadius;
+console.log('[PasteSystem] 💡 app.js (v2.3) 已成功加载并绑定全局半径与 pasteModal 接口！');
 
 /**
  * 解析原始文本并导入（支持从 Google Sheets / Excel 复制的数据，列由 Tab/逗号 切分）
@@ -1142,9 +1146,27 @@ async function searchTargetAddress() {
 function setTempTarget(latlng, name = "定位位置") {
     tempLatLng = latlng;
     tempAddressName = name;
-    document.getElementById('center-info').innerHTML = `📍 临时选定 (未保存): <br><strong>${name}</strong>`;
+    document.getElementById('center-info').innerHTML = `📍 临时选定 (未保存): <br><strong>${name}</strong> (覆盖半径: ${currentTempRadius.toFixed(1)} km)`;
     mapManager.clearRoutesAndSpokes();
-    drawCircle(latlng, parseFloat(document.getElementById('search-radius-slider').value) || 5);
+    drawCircle(latlng, currentTempRadius);
+}
+
+function onTempRadiusInput(val) {
+    currentTempRadius = parseFloat(val) || 5.0;
+    const label = document.getElementById('temp-radius-val-label');
+    if (label) label.innerText = `${currentTempRadius.toFixed(1)} km`;
+    const slider = document.getElementById('temp-radius-slider');
+    if (slider && slider.value !== val.toString()) slider.value = currentTempRadius;
+
+    // 若当前存在临时搜索定位中心（未保存为目标点），实时以独占半径重绘其覆盖圆
+    if (tempLatLng && !activeTargetId) {
+        drawCircle(tempLatLng, currentTempRadius);
+        document.getElementById('center-info').innerHTML = `📍 临时选定 (未保存): <br><strong>${tempAddressName}</strong> (覆盖半径: ${currentTempRadius.toFixed(1)} km)`;
+    }
+}
+
+function quickSetTempRadius(km) {
+    onTempRadiusInput(km);
 }
 
 function onRadiusSliderInput(val) {
@@ -1160,7 +1182,8 @@ function saveCurrentAsTarget() {
     const name = prompt("请为此选址中心命名：", tempAddressName);
     if (!name) return;
 
-    const radius = parseFloat(document.getElementById('search-radius-slider').value) || 5;
+    // 精确使用该搜索定位中心独立设定的半径
+    const radius = currentTempRadius || 5.0;
     const color = APP_CONFIG.COLORS[targetPoints.length % APP_CONFIG.COLORS.length];
 
     const newTarget = {
@@ -1194,6 +1217,30 @@ function editTargetName(id, event) {
     }
 }
 
+function editTargetRadius(id, event) {
+    if (event) event.stopPropagation();
+    const target = targetPoints.find(t => t.id === id);
+    if (!target) return;
+
+    const input = prompt(`修改【${target.name}】的独立覆盖半径 (公里):`, target.radius);
+    if (input !== null) {
+        const newR = parseFloat(input);
+        if (!isNaN(newR) && newR > 0) {
+            target.radius = newR;
+            if (activeTargetId === id) {
+                const slider = document.getElementById('search-radius-slider');
+                if (slider) slider.value = newR;
+                const label = document.getElementById('radius-val-label');
+                if (label) label.innerText = `${newR.toFixed(1)} km`;
+            }
+            saveData();
+            renderAllMapVisuals();
+        } else {
+            alert("请输入有效的数字半径（大于 0）！");
+        }
+    }
+}
+
 function changeTargetColor(id, hexColor, event) {
     if (event) event.stopPropagation();
     const target = targetPoints.find(t => t.id === id);
@@ -1218,7 +1265,7 @@ function renderTargetsList() {
                 <input type="checkbox" ${t.visible ? 'checked' : ''} onclick="toggleTargetVisibility(${t.id}, event)">
                 <input type="color" class="color-picker-input" value="${t.color}" onclick="event.stopPropagation()" onchange="changeTargetColor(${t.id}, this.value, event)" title="自定义分组主题颜色">
                 <strong style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${t.name}">${t.name}</strong> 
-                <span class="badge badge-amber">${t.radius} km</span>
+                <span class="badge badge-amber" onclick="editTargetRadius(${t.id}, event)" style="cursor:pointer;" title="点击修改该中心独占的覆盖半径">${t.radius} km <i class="fa-solid fa-pen" style="font-size:8px;"></i></span>
             </div>
             <div style="display:flex; gap:4px;">
                 <button class="btn btn-outline btn-sm" onclick="copyTargetAreaPeople(${t.id}, event)" title="复制该覆盖区域内的人员信息">
