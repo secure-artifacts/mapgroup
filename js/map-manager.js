@@ -23,7 +23,7 @@ class MapManager {
     }
 
     init(defaultCenter, defaultZoom, onMapClick, onMapMouseMove, onAltWheelResize) {
-        this.map = L.map(this.containerId, { zoomControl: false }).setView(defaultCenter, defaultZoom);
+        this.map = L.map(this.containerId, { zoomControl: false, boxZoom: false }).setView(defaultCenter, defaultZoom);
         L.control.zoom({ position: 'bottomright' }).addTo(this.map);
         this.switchTileLayer('google_road');
 
