@@ -1,6 +1,15 @@
 /**
- * Exporter Module (Clipboard TSV Formatting & CSV File Export)
+ * 字段级 TSV/CSV 格式净化器 (规范化内包换行与 Tab，防止粘贴到 Google Sheets / Excel 时分栏打乱或产生非法拆行)
  */
+function cleanFieldForTSV(val) {
+    if (val === null || val === undefined) return '';
+    let str = String(val).trim();
+    // 替换所有内部回车换行符为单个空格，防止破坏表格行
+    str = str.replace(/[\r\n]+/g, ' ');
+    // 如果包含 Tab，替换为标准空格
+    str = str.replace(/\t/g, ' ');
+    return str;
+}
 
 // 复制单圈匹配人员名单
 function copySingleCircleResults(results, targetName, targetAddress) {
@@ -9,7 +18,11 @@ function copySingleCircleResults(results, targetName, targetAddress) {
     const targetAddr = targetAddress || targetName;
     let text = `姓名\t人员地址\t目标地址\t匹配目标中心\t距离(公里)\n`;
     results.forEach(r => {
-        text += `${r.name}\t${r.address}\t${targetAddr}\t${targetName}\t${r.distance.toFixed(2)}\n`;
+        const name = cleanFieldForTSV(r.name);
+        const addr = cleanFieldForTSV(r.address);
+        const tAddr = cleanFieldForTSV(targetAddr);
+        const tName = cleanFieldForTSV(targetName);
+        text += `${name}\t${addr}\t${tAddr}\t${tName}\t${r.distance.toFixed(2)}\n`;
     });
 
     navigator.clipboard.writeText(text).then(() => {
@@ -47,11 +60,15 @@ function copyAllTargetsOriginalOrder(peopleData, targetPoints) {
             }
         });
 
+        const name = cleanFieldForTSV(p.name);
+        const addr = cleanFieldForTSV(p.address);
+
         if (matchedTarget) {
-            const targetAddr = matchedTarget.address || matchedTarget.name;
-            text += `${p.name}\t${p.address}\t${targetAddr}\t${matchedTarget.name}\t${minDistance.toFixed(2)}\n`;
+            const targetAddr = cleanFieldForTSV(matchedTarget.address || matchedTarget.name);
+            const tName = cleanFieldForTSV(matchedTarget.name);
+            text += `${name}\t${addr}\t${targetAddr}\t${tName}\t${minDistance.toFixed(2)}\n`;
         } else {
-            text += `${p.name}\t${p.address}\t-\t不在覆盖范围内\t-\n`;
+            text += `${name}\t${addr}\t-\t不在覆盖范围内\t-\n`;
         }
     });
 

@@ -954,9 +954,9 @@ function submitPasteModal() {
     closePasteModal();
 
     if (window.currentPasteMode === 'single') {
-        const lines = text.trim().split(/\r?\n/).filter(Boolean);
-        if (lines.length === 1) {
-            const row = (lines[0].includes('\t') ? lines[0].split('\t') : lines[0].split(',')).map(c => c.trim()).filter(Boolean);
+        const rows = parseRFC4180CSVOrTSV(text);
+        if (rows.length === 1) {
+            const row = rows[0];
             console.log('[PasteSystem] 📋 拆分单条人员数据:', row);
             if (row.length >= 3) {
                 if (document.getElementById('add-group')) document.getElementById('add-group').value = row[0];
@@ -966,7 +966,7 @@ function submitPasteModal() {
                 if (document.getElementById('add-name')) document.getElementById('add-name').value = row[0];
                 if (document.getElementById('add-address')) document.getElementById('add-address').value = row[1];
             } else {
-                if (document.getElementById('add-name')) document.getElementById('add-name').value = lines[0];
+                if (document.getElementById('add-name')) document.getElementById('add-name').value = text.trim();
             }
             const addStatus = document.getElementById('add-status');
             if (addStatus) addStatus.innerText = `📋 已成功自动拆分填入输入框，点击“添加”按钮完成发布定位！`;
@@ -996,18 +996,71 @@ window.applySmartGroupingPreview = applySmartGroupingPreview;
 console.log('[PasteSystem] 💡 app.js (v2.6) 已成功加载并绑定全范围 500km 数字/滑块双模调控接口！');
 
 /**
- * 解析原始文本并导入（支持从 Google Sheets / Excel 复制的数据，列由 Tab/逗号 切分）
+ * 符合 RFC 4180 标准的状态机解析器：严格尊重双引号包裹与单元格内换行，绝不产生非法多余拆行
+ */
+function parseRFC4180CSVOrTSV(text) {
+    if (!text || !text.trim()) return [];
+
+    const rows = [];
+    let currentRow = [];
+    let currentCell = '';
+    let inQuotes = false;
+
+    // 智能检测主要分隔符：优先检测 Tab (\t) ，其次为逗号 (,)
+    const tabCount = (text.match(/\t/g) || []).length;
+    const commaCount = (text.match(/,/g) || []).length;
+    const delimiter = tabCount >= commaCount ? '\t' : ',';
+
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const nextChar = text[i + 1];
+
+        if (char === '"') {
+            if (inQuotes && nextChar === '"') {
+                // 转义的双引号 ""
+                currentCell += '"';
+                i++;
+            } else {
+                // 切换双引号状态
+                inQuotes = !inQuotes;
+            }
+        } else if (char === delimiter && !inQuotes) {
+            // 单元格结束 -> 规范化内部换行并入行
+            currentRow.push(currentCell.replace(/[\r\n]+/g, ' ').trim());
+            currentCell = '';
+        } else if ((char === '\r' || char === '\n') && !inQuotes) {
+            // 只有在双引号外面遇到的 \n 才表示真正的表格“换行”！
+            if (char === '\r' && nextChar === '\n') {
+                i++;
+            }
+            currentRow.push(currentCell.replace(/[\r\n]+/g, ' ').trim());
+            if (currentRow.some(c => c !== '')) {
+                rows.push(currentRow);
+            }
+            currentRow = [];
+            currentCell = '';
+        } else {
+            currentCell += char;
+        }
+    }
+
+    if (currentCell !== '' || currentRow.length > 0) {
+        currentRow.push(currentCell.replace(/[\r\n]+/g, ' ').trim());
+        if (currentRow.some(c => c !== '')) {
+            rows.push(currentRow);
+        }
+    }
+
+    return rows;
+}
+
+/**
+ * 解析原始文本并导入（支持从 Google Sheets / Excel 复制的数据，标准解析多行及内包换行）
  */
 function importFromRawText(text) {
     if (!text || !text.trim()) return;
 
-    const lines = text.trim().split(/\r?\n/);
-    const rows = lines.map(line => {
-        if (line.includes('\t')) {
-            return line.split('\t');
-        }
-        return line.split(',');
-    }).filter(row => row.length > 0 && row.some(cell => (cell || '').trim()));
+    const rows = parseRFC4180CSVOrTSV(text);
 
     if (rows.length > 0) {
         processParsedRows(rows);
@@ -1580,8 +1633,11 @@ function batchCopyByNearestTarget() {
         });
         
         if (nearestTarget) {
-            const targetAddr = nearestTarget.address || nearestTarget.name;
-            text += `${p.name}\t${p.address}\t${targetAddr}\t${nearestTarget.name}\t${minDist.toFixed(2)}\n`;
+            const name = cleanFieldForTSV(p.name);
+            const addr = cleanFieldForTSV(p.address);
+            const targetAddr = cleanFieldForTSV(nearestTarget.address || nearestTarget.name);
+            const targetName = cleanFieldForTSV(nearestTarget.name);
+            text += `${name}\t${addr}\t${targetAddr}\t${targetName}\t${minDist.toFixed(2)}\n`;
             totalCount++;
         }
     });
@@ -1608,11 +1664,14 @@ function batchCopyAllDetails() {
     let totalCount = 0;
     
     selected.forEach(target => {
-        const targetAddr = target.address || target.name;
+        const targetAddr = cleanFieldForTSV(target.address || target.name);
+        const targetName = cleanFieldForTSV(target.name);
         peopleData.forEach(p => {
             const distKm = L.latLng(p.lat, p.lng).distanceTo(L.latLng(target.lat, target.lng)) / 1000;
             if (distKm <= target.radius) {
-                text += `${p.name}\t${p.address}\t${targetAddr}\t${target.name}\t${distKm.toFixed(2)}\n`;
+                const name = cleanFieldForTSV(p.name);
+                const addr = cleanFieldForTSV(p.address);
+                text += `${name}\t${addr}\t${targetAddr}\t${targetName}\t${distKm.toFixed(2)}\n`;
                 totalCount++;
             }
         });
