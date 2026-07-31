@@ -1701,7 +1701,7 @@ function toggleAlgoPreviewMode(enabled) {
     const applyBtn = document.getElementById('apply-preview-btn');
 
     if (enabled) {
-        if (toggleText) toggleText.innerText = '已开启 (实时拖动可预览)';
+        if (toggleText) toggleText.innerText = '已开启';
         if (applyBtn) applyBtn.style.display = 'inline-block';
         triggerAlgoLivePreview();
     } else {

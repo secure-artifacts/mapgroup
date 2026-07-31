@@ -497,43 +497,62 @@ class MapManager {
 
         previewCenters.forEach((c, idx) => {
             const color = colors[idx % colors.length];
+            const centerLatLng = L.latLng(c.lat, c.lng);
 
-            // 1. 预览中心点 Marker
-            const marker = L.circleMarker([c.lat, c.lng], {
-                radius: 10,
-                fillColor: color,
-                color: '#ffffff',
-                weight: 3,
-                opacity: 1,
-                fillOpacity: 0.95
-            }).addTo(this.map);
+            // 1. 精致水滴中心 Icon (与正式节点 100% 保持一致)
+            const centerIcon = L.divIcon({
+                className: 'custom-target-marker',
+                html: `
+                    <div style="background:${color}; width:36px; height:36px; border-radius:50% 50% 50% 0; transform:rotate(-45deg); display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px ${color}88; border:2px solid #fff;">
+                        <span style="transform:rotate(45deg); color:#fff; font-size:12px; font-weight:800;">${idx + 1}</span>
+                    </div>
+                `,
+                iconSize: [36, 36],
+                iconAnchor: [18, 36]
+            });
 
-            marker.bindTooltip(`📍 预览中心 ${idx + 1}: ${c.name} (${c.people ? c.people.length : 0}人)`, { permanent: true, direction: 'top', className: 'marker-tooltip-active' });
+            const marker = L.marker([c.lat, c.lng], { icon: centerIcon }).addTo(this.map);
+            marker.bindTooltip(`📍 ${c.name} (${c.people ? c.people.length : 0}人)`, { sticky: true });
             this.previewLayers.push(marker);
 
-            // 2. 预览覆盖圆
+            // 2. 正式标准覆盖圆
             if (c.radius) {
-                const circle = L.circle([c.lat, c.lng], {
+                const circle = L.circle(centerLatLng, {
                     radius: c.radius * 1000,
                     color: color,
                     weight: 2,
-                    dashArray: '6, 6',
+                    dashArray: '5, 5',
                     fillColor: color,
-                    fillOpacity: 0.15
+                    fillOpacity: 0.12
                 }).addTo(this.map);
                 this.previewLayers.push(circle);
             }
 
-            // 3. 预览连线 (Spokes)
+            // 3. 正式标准辐射连线 (Spokes)
             if (c.people && c.people.length > 0) {
                 c.people.forEach(p => {
-                    const line = L.polyline([[c.lat, c.lng], [p.lat, p.lng]], {
+                    const distKm = centerLatLng.distanceTo(L.latLng(p.lat, p.lng)) / 1000;
+                    const line = L.polyline([centerLatLng, [p.lat, p.lng]], {
                         color: color,
-                        weight: 1.5,
-                        opacity: 0.6,
-                        dashArray: '3, 4'
+                        weight: 2,
+                        dashArray: '5, 7',
+                        opacity: 0.8
                     }).addTo(this.map);
+
+                    line.bindTooltip(`${p.name} -> ${c.name}: ${distKm.toFixed(2)} km`, { sticky: true });
                     this.previewLayers.push(line);
+
+                    // 4. 预览时同步将人员点位高亮渲染为组主题色 Marker
+                    const pMarker = L.circleMarker([p.lat, p.lng], {
+                        radius: 6,
+                        fillColor: color,
+                        color: '#ffffff',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.9
+                    }).addTo(this.map);
+                    pMarker.bindTooltip(`👤 ${p.name} (${c.name})`, { sticky: true });
+                    this.previewLayers.push(pMarker);
                 });
             }
         });
