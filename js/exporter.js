@@ -3,12 +3,13 @@
  */
 
 // 复制单圈匹配人员名单
-function copySingleCircleResults(results, targetName) {
+function copySingleCircleResults(results, targetName, targetAddress) {
     if (!results || results.length === 0) return;
 
-    let text = `姓名\t详细地址\t匹配目标中心\t距离(公里)\n`;
+    const targetAddr = targetAddress || targetName;
+    let text = `姓名\t人员地址\t目标地址\t匹配目标中心\t距离(公里)\n`;
     results.forEach(r => {
-        text += `${r.name}\t${r.address}\t${targetName}\t${r.distance.toFixed(2)}\n`;
+        text += `${r.name}\t${r.address}\t${targetAddr}\t${targetName}\t${r.distance.toFixed(2)}\n`;
     });
 
     navigator.clipboard.writeText(text).then(() => {
@@ -27,7 +28,7 @@ function copyAllTargetsOriginalOrder(peopleData, targetPoints) {
         return;
     }
 
-    let text = "姓名\t详细地址\t匹配最近中心\t距离(公里)\n";
+    let text = "姓名\t人员地址\t目标地址\t匹配最近中心\t距离(公里)\n";
 
     peopleData.forEach(p => {
         let matchedTarget = null;
@@ -47,9 +48,10 @@ function copyAllTargetsOriginalOrder(peopleData, targetPoints) {
         });
 
         if (matchedTarget) {
-            text += `${p.name}\t${p.address}\t${matchedTarget.name}\t${minDistance.toFixed(2)}\n`;
+            const targetAddr = matchedTarget.address || matchedTarget.name;
+            text += `${p.name}\t${p.address}\t${targetAddr}\t${matchedTarget.name}\t${minDistance.toFixed(2)}\n`;
         } else {
-            text += `${p.name}\t${p.address}\t不在覆盖范围内\t-\n`;
+            text += `${p.name}\t${p.address}\t-\t不在覆盖范围内\t-\n`;
         }
     });
 
@@ -65,7 +67,7 @@ function exportCSVResults(peopleData, targetPoints) {
         return;
     }
     
-    let rows = [["姓名", "详细地址", "纬度", "经度", "归属组/选址中心", "距离(km)"]];
+    let rows = [["姓名", "人员地址", "纬度", "经度", "目标地址", "归属组/选址中心", "距离(km)"]];
     
     peopleData.forEach(p => {
         let matchedTarget = null;
@@ -83,9 +85,10 @@ function exportCSVResults(peopleData, targetPoints) {
         });
 
         if (matchedTarget) {
-            rows.push([p.name, p.address, p.lat, p.lng, matchedTarget.name, minDistance.toFixed(2)]);
+            const targetAddr = matchedTarget.address || matchedTarget.name;
+            rows.push([p.name, p.address, p.lat, p.lng, targetAddr, matchedTarget.name, minDistance.toFixed(2)]);
         } else {
-            rows.push([p.name, p.address, p.lat, p.lng, "未覆盖孤立点", "-"]);
+            rows.push([p.name, p.address, p.lat, p.lng, "-", "未覆盖孤立点", "-"]);
         }
     });
 

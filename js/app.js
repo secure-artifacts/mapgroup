@@ -8,9 +8,19 @@ let activeTargetId = null;
 let tempLatLng = null;
 let tempAddressName = "";
 
+// Group metadata: { groupName: { color, visible } }
+let groupMeta = {};
+let activeGroupFilter = null; // null = show all, string = filter by group name
+
 window.onload = function() {
     mapManager = new MapManager('map-container');
     mapManager.init(APP_CONFIG.DEFAULT_CENTER, APP_CONFIG.DEFAULT_ZOOM, handleMapClick, handleMapMouseMove);
+
+    // Initialize searchable country selector
+    if (typeof initCountrySelector === 'function') initCountrySelector();
+    
+    // Load saved Geoapify API Key
+    if (typeof loadGeoapifyKey === 'function') loadGeoapifyKey();
 
     loadSavedData();
     updateGlobalStats();
@@ -105,15 +115,23 @@ function loadSavedData() {
     const savedPeople = localStorage.getItem('global_map_people');
     const savedTargets = localStorage.getItem('global_map_targets');
     const savedActiveId = localStorage.getItem('global_map_active_id');
+    const savedGroupMeta = localStorage.getItem('global_map_group_meta');
 
     if (savedPeople) {
         peopleData = JSON.parse(savedPeople);
+        // Backward compat: add group field if missing
+        peopleData.forEach(p => { if (!p.group) p.group = '未分组'; });
     }
     if (savedTargets) {
         targetPoints = JSON.parse(savedTargets);
         targetPoints.forEach(t => { if(t.visible === undefined) t.visible = true; });
     }
+    if (savedGroupMeta) {
+        groupMeta = JSON.parse(savedGroupMeta);
+    }
 
+    // Rebuild groupMeta for any groups not yet tracked
+    rebuildGroupMeta();
     renderAllMapVisuals();
 
     if (savedActiveId) {
@@ -123,19 +141,23 @@ function loadSavedData() {
 }
 
 function renderAllMapVisuals() {
+    renderGroupPanel();
     renderRosterList();
     renderTargetsList();
-    mapManager.renderPeopleMarkers(peopleData, targetPoints);
-    mapManager.renderTargetMarkers(targetPoints, peopleData, selectTarget);
+    // Filter people by group visibility
+    const visiblePeople = getVisiblePeople();
+    mapManager.renderPeopleMarkers(visiblePeople, targetPoints, groupMeta);
+    mapManager.renderTargetMarkers(targetPoints, visiblePeople, selectTarget);
     mapManager.renderAllTargetCircles(targetPoints, activeTargetId);
-    mapManager.drawAllGroupSpokeLines(peopleData, targetPoints);
-    mapManager.drawGroupTerritoryPolygons(peopleData, targetPoints);
+    mapManager.drawAllGroupSpokeLines(visiblePeople, targetPoints);
+    mapManager.drawGroupTerritoryPolygons(visiblePeople, targetPoints);
 }
 
 function saveData() {
     localStorage.setItem('global_map_people', JSON.stringify(peopleData));
     localStorage.setItem('global_map_targets', JSON.stringify(targetPoints));
     localStorage.setItem('global_map_active_id', activeTargetId);
+    localStorage.setItem('global_map_group_meta', JSON.stringify(groupMeta));
     updateGlobalStats();
 }
 
@@ -180,15 +202,275 @@ function updateGlobalStats() {
 
 function loadSampleDemoData() {
     peopleData = [...APP_CONFIG.SAMPLE_PEOPLE];
+    peopleData.forEach(p => { if (!p.group) p.group = '未分组'; });
+    rebuildGroupMeta();
     saveData();
     renderAllMapVisuals();
     mapManager.fitBoundsToPeople(peopleData);
     alert("已成功加载 11 名示范人员数据！地图已生成常驻姓名标签与高亮定位。");
 }
 
+// ===================== Group Management =====================
+
+const GROUP_COLORS = ['#4285F4','#34A853','#EA4335','#FBBC04','#8E44AD','#E67E22','#1ABC9C','#E84393','#00B894','#6C5CE7','#FD79A8','#00CEC9','#D63031','#0984E3','#A29BFE'];
+
+function rebuildGroupMeta() {
+    const existingGroups = new Set(Object.keys(groupMeta));
+    const currentGroups = new Set(peopleData.map(p => p.group || '未分组'));
+    
+    // Add new groups
+    let colorIdx = existingGroups.size;
+    currentGroups.forEach(g => {
+        if (!groupMeta[g]) {
+            groupMeta[g] = {
+                color: GROUP_COLORS[colorIdx % GROUP_COLORS.length],
+                visible: true,
+                expanded: false
+            };
+            colorIdx++;
+        }
+    });
+    
+    // Remove groups with no members
+    Object.keys(groupMeta).forEach(g => {
+        if (!currentGroups.has(g)) delete groupMeta[g];
+    });
+}
+
+function getVisiblePeople() {
+    return peopleData.filter(p => {
+        const gm = groupMeta[p.group];
+        return gm ? gm.visible : true;
+    });
+}
+
+function getGroupNames() {
+    return Object.keys(groupMeta).sort((a, b) => {
+        if (a === '未分组') return 1;
+        if (b === '未分组') return -1;
+        return a.localeCompare(b);
+    });
+}
+
+function getGroupCount(groupName) {
+    return peopleData.filter(p => p.group === groupName).length;
+}
+
+function toggleGroupVisibility(groupName) {
+    if (groupMeta[groupName]) {
+        groupMeta[groupName].visible = !groupMeta[groupName].visible;
+        saveData();
+        renderAllMapVisuals();
+    }
+}
+
+function changeGroupColor(groupName, color) {
+    if (groupMeta[groupName]) {
+        groupMeta[groupName].color = color;
+        saveData();
+        renderAllMapVisuals();
+    }
+}
+
+function toggleGroupExpand(groupName) {
+    if (groupMeta[groupName]) {
+        groupMeta[groupName].expanded = !groupMeta[groupName].expanded;
+        renderGroupPanel();
+        renderRosterList();
+    }
+}
+
+function filterByGroup(groupName) {
+    activeGroupFilter = (activeGroupFilter === groupName) ? null : groupName;
+    renderGroupPanel();
+    renderRosterList();
+}
+
+function showAllGroups() {
+    Object.keys(groupMeta).forEach(g => groupMeta[g].visible = true);
+    activeGroupFilter = null;
+    saveData();
+    renderAllMapVisuals();
+}
+
+function hideAllGroups() {
+    Object.keys(groupMeta).forEach(g => groupMeta[g].visible = false);
+    saveData();
+    renderAllMapVisuals();
+}
+
+function renderGroupPanel() {
+    const panel = document.getElementById('group-panel');
+    if (!panel) return;
+    
+    const groups = getGroupNames();
+    if (groups.length === 0) {
+        panel.innerHTML = '<div style="color:var(--text-muted); font-size:11px; text-align:center; padding:8px;">暂无分组数据</div>';
+        return;
+    }
+    
+    let html = '';
+    groups.forEach(g => {
+        const gm = groupMeta[g];
+        const count = getGroupCount(g);
+        const isExpanded = gm.expanded;
+        const isFiltered = activeGroupFilter === g;
+        
+        html += `<div class="group-item ${isFiltered ? 'group-filtered' : ''}" data-group="${g}">
+            <div class="group-header" onclick="toggleGroupExpand('${g.replace(/'/g, "\\'")}')">
+                <div style="display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;">
+                    <input type="checkbox" ${gm.visible ? 'checked' : ''} onclick="event.stopPropagation();toggleGroupVisibility('${g.replace(/'/g, "\\'")}')" title="显示/隐藏该组标记">
+                    <input type="color" class="color-picker-input" value="${gm.color}" onclick="event.stopPropagation()" onchange="changeGroupColor('${g.replace(/'/g, "\\'")}', this.value)">
+                    <span class="group-name" title="${g}">${g}</span>
+                    <span class="badge badge-blue">${count}人</span>
+                </div>
+                <div style="display:flex;gap:4px;align-items:center;">
+                    <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();filterByGroup('${g.replace(/'/g, "\\'")}')" title="单独查看该组">
+                        <i class="fa-solid fa-eye${isFiltered ? '' : '-slash'}" style="font-size:10px;"></i>
+                    </button>
+                    <i class="fa-solid fa-chevron-${isExpanded ? 'up' : 'down'}" style="font-size:10px;color:var(--text-muted);"></i>
+                </div>
+            </div>`;
+        
+        if (isExpanded) {
+            const members = peopleData.filter(p => p.group === g);
+            html += `<div class="group-members">`;
+            members.forEach((p, i) => {
+                const idx = peopleData.indexOf(p);
+                html += `<div class="group-member-item">
+                    <span style="color:${gm.color};margin-right:4px;">●</span>
+                    <span class="member-name">${p.name}</span>
+                    <span class="member-addr">${p.address}</span>
+                    <button class="btn btn-danger btn-sm" onclick="deletePerson(${idx})" title="删除" style="padding:1px 4px;font-size:9px;">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>`;
+            });
+            html += `</div>`;
+        }
+        
+        html += `</div>`;
+    });
+    
+    panel.innerHTML = html;
+}
+
+// ===================== Data Export/Import =====================
+
+function exportAllData() {
+    const data = {
+        version: '5.0',
+        exportDate: new Date().toISOString(),
+        people: peopleData,
+        targets: targetPoints,
+        groupMeta: groupMeta
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `智能分组地图_数据_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function triggerImportData() {
+    document.getElementById('import-data-input').click();
+}
+
+async function importAllData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        
+        if (!data.people || !Array.isArray(data.people)) {
+            alert('❌ 无效的数据文件格式！');
+            return;
+        }
+        
+        // Ensure group field
+        data.people.forEach(p => { if (!p.group) p.group = '未分组'; });
+        
+        // Check for duplicates
+        const existingNames = new Set(peopleData.map(p => p.name));
+        const duplicates = data.people.filter(p => existingNames.has(p.name));
+        const newPeople = data.people.filter(p => !existingNames.has(p.name));
+        
+        let mergeChoice = 'add_new'; // default
+        
+        if (duplicates.length > 0) {
+            const choice = prompt(
+                `检测到 ${duplicates.length} 个重名人员：\n` +
+                duplicates.slice(0, 5).map(p => `  · ${p.name}`).join('\n') +
+                (duplicates.length > 5 ? `\n  ... 等 ${duplicates.length} 人` : '') +
+                `\n\n请选择处理方式：\n` +
+                `1 = 跳过重名 (仅导入 ${newPeople.length} 名新人员)\n` +
+                `2 = 覆盖重名 (用新数据替换)\n` +
+                `3 = 全部导入 (包括重名，作为不同人员)\n` +
+                `0 = 取消导入`,
+                '1'
+            );
+            
+            if (choice === '0' || choice === null) return;
+            if (choice === '2') mergeChoice = 'overwrite';
+            else if (choice === '3') mergeChoice = 'add_all';
+            // else: default 'add_new' (skip duplicates)
+        }
+        
+        if (mergeChoice === 'overwrite') {
+            // Remove existing duplicates, then add all imported
+            const dupNames = new Set(duplicates.map(p => p.name));
+            peopleData = peopleData.filter(p => !dupNames.has(p.name));
+            peopleData = peopleData.concat(data.people);
+        } else if (mergeChoice === 'add_all') {
+            peopleData = peopleData.concat(data.people);
+        } else {
+            // add_new: only non-duplicates
+            peopleData = peopleData.concat(newPeople);
+        }
+        
+        // Import targets if present
+        if (data.targets && Array.isArray(data.targets)) {
+            const existingTargetNames = new Set(targetPoints.map(t => t.name));
+            data.targets.forEach(t => {
+                if (!existingTargetNames.has(t.name)) {
+                    t.id = Date.now() + Math.random(); // ensure unique id
+                    if (t.visible === undefined) t.visible = true;
+                    targetPoints.push(t);
+                }
+            });
+        }
+        
+        // Import group meta
+        if (data.groupMeta) {
+            Object.keys(data.groupMeta).forEach(g => {
+                if (!groupMeta[g]) groupMeta[g] = data.groupMeta[g];
+            });
+        }
+        
+        rebuildGroupMeta();
+        saveData();
+        renderAllMapVisuals();
+        
+        const importedCount = mergeChoice === 'add_new' ? newPeople.length : data.people.length;
+        alert(`✅ 成功导入 ${importedCount} 名人员数据！` +
+            (duplicates.length > 0 ? ` (${duplicates.length} 名重名${mergeChoice === 'overwrite' ? '已覆盖' : mergeChoice === 'add_all' ? '已全部导入' : '已跳过'})` : ''));
+    } catch (e) {
+        alert('❌ 文件解析失败：' + e.message);
+    }
+    
+    event.target.value = '';
+}
+
 function clearAllPeople() {
     if(confirm("确定要清空所有已导入的人员数据吗？")) {
         peopleData = [];
+        groupMeta = {};
+        activeGroupFilter = null;
         saveData();
         renderAllMapVisuals();
         updateResults();
@@ -200,6 +482,7 @@ function clearAllPeople() {
 async function addSinglePerson() {
     const name = document.getElementById('add-name').value.trim();
     const address = document.getElementById('add-address').value.trim();
+    const group = (document.getElementById('add-group') ? document.getElementById('add-group').value.trim() : '') || '未分组';
     const status = document.getElementById('add-status');
 
     if (!name || !address) {
@@ -210,12 +493,14 @@ async function addSinglePerson() {
 
     const coords = await freeGeocode(address);
     if(coords) {
-        peopleData.push({ name, lat: coords.lat, lng: coords.lng, address });
+        peopleData.push({ name, lat: coords.lat, lng: coords.lng, address, group });
+        rebuildGroupMeta();
         saveData();
         renderAllMapVisuals();
-        status.innerText = `✅ 成功添加人员: ${name}`;
+        status.innerText = `✅ 成功添加人员: ${name} → ${group}`;
         document.getElementById('add-name').value = '';
         document.getElementById('add-address').value = '';
+        if (document.getElementById('add-group')) document.getElementById('add-group').value = '';
         updateResultsByActiveTarget();
     } else {
         status.innerText = "❌ 检索未果，请尝试更详细的地址或输入 Lat,Lng 坐标。";
@@ -224,6 +509,7 @@ async function addSinglePerson() {
 
 function deletePerson(idx) {
     peopleData.splice(idx, 1);
+    rebuildGroupMeta();
     saveData();
     renderAllMapVisuals();
     updateResultsByActiveTarget();
@@ -246,7 +532,7 @@ async function editPerson(idx, event) {
     if (trimmedAddress !== p.address) {
         const coords = await freeGeocode(trimmedAddress);
         if (coords) {
-            peopleData[idx] = { name: trimmedName, lat: coords.lat, lng: coords.lng, address: trimmedAddress };
+            peopleData[idx] = { name: trimmedName, lat: coords.lat, lng: coords.lng, address: trimmedAddress, group: p.group || '未分组' };
         } else {
             alert("该地址无法定位，已保留原坐标。");
             peopleData[idx].name = trimmedName;
@@ -266,14 +552,26 @@ function renderRosterList(filterText = '') {
     document.getElementById('roster-count').innerText = peopleData.length;
 
     peopleData.forEach((p, idx) => {
+        // Filter by group
+        if (activeGroupFilter && p.group !== activeGroupFilter) return;
+        
+        // Filter by search text
         if(filterText && !p.name.toLowerCase().includes(filterText.toLowerCase()) && !p.address.toLowerCase().includes(filterText.toLowerCase())) {
             return;
         }
+        
+        const gm = groupMeta[p.group];
+        const groupColor = gm ? gm.color : '#4285F4';
+        
         const div = document.createElement('div');
         div.className = 'person-item';
         div.innerHTML = `
             <div class="person-info">
-                <div class="person-name"><i class="fa-solid fa-user-tag" style="color:var(--accent-blue)"></i> ${p.name}</div>
+                <div class="person-name">
+                    <span style="color:${groupColor};font-size:10px;">●</span>
+                    ${p.name}
+                    <span class="badge" style="background:${groupColor}22;color:${groupColor};font-size:8px;padding:1px 5px;">${p.group}</span>
+                </div>
                 <div class="person-addr">${p.address}</div>
             </div>
             <div style="display:flex; gap:4px;">
@@ -294,10 +592,22 @@ function filterRoster() {
     renderRosterList(q);
 }
 
+// Failed geocoding entries (global, persisted during session)
+let failedGeoEntries = [];
+
 // CSV Upload event
 document.getElementById('csv-file-input').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
+
+    // Mandatory: must select a country first
+    const countryCode = (typeof getSelectedCountryCode === 'function') ? getSelectedCountryCode() : '';
+    if (!countryCode) {
+        alert('⚠️ 请先选择人员所在国家！\n\n在“选择人员所在国家”输入框中搜索并选择国家后再导入 CSV。');
+        // Reset file input so user can re-select
+        e.target.value = '';
+        return;
+    }
 
     Papa.parse(file, {
         header: false,
@@ -312,41 +622,326 @@ document.getElementById('csv-file-input').addEventListener('change', function(e)
             progressWrap.style.display = 'block';
             statusDiv.innerText = "正在解析并同步地理位置...";
 
-            for (let i = 0; i < rows.length; i++) {
-                progressFill.style.width = `${((i + 1) / rows.length) * 100}%`;
-                if (i === 0 && (rows[i][0].includes("姓") || rows[i][0].toLowerCase().includes("name"))) {
-                    continue;
+            let skippedCount = 0;
+            failedGeoEntries = []; // Reset failed list
+
+            // Helper: detect if a row is a header or empty row
+            function isHeaderOrEmpty(row) {
+                const col0 = (row[0] || '').trim();
+                if (!col0) return true;
+                const lower = col0.toLowerCase();
+                if (lower.includes('name') || lower.includes('姓') || lower.includes('名字') ||
+                    lower.includes('新人') || lower.includes('地址') || lower.includes('address') ||
+                    lower.includes('town') || lower.includes('believer') || lower.includes('street') ||
+                    lower.includes('village')) {
+                    return true;
                 }
-                const name = rows[i][0];
-                const colB = rows[i][1];
-                const colC = rows[i][2];
+                return false;
+            }
 
-                if (!name || !colB) continue;
-
-                const lat = parseFloat(colB);
-                const lng = parseFloat(colC);
-
-                if (!isNaN(lat) && !isNaN(lng)) {
-                    tempPeople.push({ name, lat, lng, address: rows[i][3] || "GPS Location" });
+            // Detect column format by checking first data row
+            // 2-col: name, address
+            // 3-col: group, name, address
+            // 4-col: name, lat, lng, address
+            let dataStartIdx = 0;
+            for (let i = 0; i < Math.min(rows.length, 5); i++) {
+                if (isHeaderOrEmpty(rows[i])) {
+                    dataStartIdx = i + 1;
                 } else {
-                    statusDiv.innerText = `解析中: (${i + 1}/${rows.length}) ${name}...`;
-                    const coords = await freeGeocode(colB);
-                    if (coords) {
-                        tempPeople.push({ name, lat: coords.lat, lng: coords.lng, address: colB });
+                    break;
+                }
+            }
+
+            // Detect format from column count of first data row
+            const sampleRow = rows[dataStartIdx] || [];
+            const colCount = sampleRow.filter(c => (c || '').trim()).length;
+            
+            // Determine format: 
+            // If 3 non-empty columns and column B is NOT a number → group,name,address
+            // If 4+ columns and column B,C are numbers → name,lat,lng,address
+            // Default 2-col: name,address
+            let format = '2col'; // name, address
+            if (colCount >= 4) {
+                const testLat = parseFloat((sampleRow[1] || '').trim());
+                const testLng = parseFloat((sampleRow[2] || '').trim());
+                if (!isNaN(testLat) && !isNaN(testLng) && Math.abs(testLat) <= 90) {
+                    format = '4col'; // name, lat, lng, address
+                } else {
+                    format = '3col'; // group, name, address (extra cols ignored)
+                }
+            } else if (colCount === 3) {
+                const testLat = parseFloat((sampleRow[1] || '').trim());
+                const testLng = parseFloat((sampleRow[2] || '').trim());
+                if (!isNaN(testLat) && !isNaN(testLng) && Math.abs(testLat) <= 90) {
+                    format = '4col'; // name, lat, lng (no address col)
+                } else {
+                    format = '3col'; // group, name, address
+                }
+            }
+
+            statusDiv.innerText = `检测到 ${format === '3col' ? '3列(组,姓名,地址)' : format === '4col' ? '4列(姓名,纬度,经度,地址)' : '2列(姓名,地址)'} 格式`;
+
+            // Separate rows into direct-coordinate and needs-geocoding
+            const directRows = [];
+            const geocodeRows = [];
+
+            for (let i = dataStartIdx; i < rows.length; i++) {
+                let group = '未分组';
+                let name, address, lat, lng;
+
+                if (format === '3col') {
+                    group = (rows[i][0] || '').trim() || '未分组';
+                    name = (rows[i][1] || '').trim();
+                    address = (rows[i][2] || '').trim();
+                } else if (format === '4col') {
+                    name = (rows[i][0] || '').trim();
+                    lat = parseFloat((rows[i][1] || '').trim());
+                    lng = parseFloat((rows[i][2] || '').trim());
+                    address = (rows[i][3] || '').trim() || 'GPS Location';
+                } else {
+                    name = (rows[i][0] || '').trim();
+                    address = (rows[i][1] || '').trim();
+                }
+
+                if (!name) { skippedCount++; continue; }
+
+                if (format === '4col' && !isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+                    directRows.push({ name, lat, lng, address, group });
+                } else if (address) {
+                    geocodeRows.push({ name, address, group });
+                } else {
+                    skippedCount++;
+                }
+            }
+
+            // Duplicate detection
+            const existingNames = new Set(peopleData.map(p => p.name));
+            const allNewRows = [...directRows, ...geocodeRows];
+            const dupRows = allNewRows.filter(r => existingNames.has(r.name));
+
+            let skipDupNames = new Set();
+            if (dupRows.length > 0) {
+                const choice = prompt(
+                    `检测到 ${dupRows.length} 个已存在的人员：\n` +
+                    dupRows.slice(0, 5).map(r => `  · ${r.name}`).join('\n') +
+                    (dupRows.length > 5 ? `\n  ... 等` : '') +
+                    `\n\n1 = 跳过重名\n2 = 覆盖重名\n3 = 全部导入\n0 = 取消`,
+                    '1'
+                );
+                if (choice === '0' || choice === null) {
+                    progressWrap.style.display = 'none';
+                    statusDiv.innerText = '已取消导入。';
+                    return;
+                }
+                if (choice === '1') {
+                    skipDupNames = new Set(dupRows.map(r => r.name));
+                } else if (choice === '2') {
+                    const dupNameSet = new Set(dupRows.map(r => r.name));
+                    peopleData = peopleData.filter(p => !dupNameSet.has(p.name));
+                }
+                // choice '3': add all, no filtering
+            }
+
+            // Filter out skipped duplicates
+            const filteredDirect = directRows.filter(r => !skipDupNames.has(r.name));
+            const filteredGeocode = geocodeRows.filter(r => !skipDupNames.has(r.name));
+
+            // Instantly add all direct-coordinate entries
+            tempPeople.push(...filteredDirect);
+
+            // Sequential geocode with exponential backoff retry
+            const totalGeocode = filteredGeocode.length;
+            const MAX_RETRIES = 4;
+
+            for (let i = 0; i < totalGeocode; i++) {
+                const row = filteredGeocode[i];
+                statusDiv.innerText = `🌍 地址解析中: (${i + 1}/${totalGeocode}) ${row.name}...`;
+                progressFill.style.width = `${((i + 1) / totalGeocode) * 100}%`;
+
+                let coords = null;
+                let retryDelay = 500; // Shorter start since Photon is fast
+
+                for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+                    coords = await freeGeocode(row.address);
+                    if (coords) break;
+
+                    if (attempt < MAX_RETRIES) {
+                        statusDiv.innerText = `⏳ 重试 ${row.name}... (${attempt + 1}/${MAX_RETRIES}, 等待 ${retryDelay / 1000}s)`;
+                        await new Promise(resolve => setTimeout(resolve, retryDelay));
+                        retryDelay *= 2; // Exponential: 1→2→4→8
                     }
+                }
+
+                if (coords) {
+                    tempPeople.push({ name: row.name, lat: coords.lat, lng: coords.lng, address: row.address, group: row.group || '未分组' });
+                } else {
+                    failedGeoEntries.push({ name: row.name, address: row.address, group: row.group || '未分组' });
+                }
+
+                // Photon has no strict rate limit, short delay to be polite
+                if (i < totalGeocode - 1) {
                     await new Promise(resolve => setTimeout(resolve, 300));
                 }
             }
 
             peopleData = peopleData.concat(tempPeople);
+            rebuildGroupMeta();
             saveData();
             renderAllMapVisuals();
-            statusDiv.innerText = `🎉 成功解析并导入 ${tempPeople.length} 名人员数据！`;
+            
+            let resultMsg = `🎉 成功解析并导入 ${tempPeople.length} 名人员数据！`;
+            if (failedGeoEntries.length > 0) {
+                resultMsg += ` (${failedGeoEntries.length} 条地址解析失败)`;
+            }
+            if (skippedCount > 0) {
+                resultMsg += ` (跳过 ${skippedCount} 条空行)`;
+            }
+            statusDiv.innerText = resultMsg;
+            
+            // Show failed list with retry buttons
+            renderFailedList();
+            
             mapManager.fitBoundsToPeople(peopleData);
             updateResultsByActiveTarget();
         }
     });
 });
+
+/**
+ * Render the failed geocoding list with individual retry buttons
+ */
+function renderFailedList() {
+    const panel = document.getElementById('geocode-fail-panel');
+    const list = document.getElementById('geocode-fail-list');
+    const countSpan = document.getElementById('fail-count');
+    
+    if (failedGeoEntries.length === 0) {
+        panel.style.display = 'none';
+        return;
+    }
+    
+    panel.style.display = 'block';
+    countSpan.textContent = failedGeoEntries.length;
+    
+    list.innerHTML = failedGeoEntries.map((entry, idx) => `
+        <div class="geocode-fail-item" id="fail-item-${idx}">
+            <div class="geocode-fail-info">
+                <div class="geocode-fail-name">${entry.name}</div>
+                <div class="geocode-fail-addr" title="${entry.address}">${entry.address}</div>
+            </div>
+            <button class="geocode-retry-btn" id="retry-btn-${idx}" onclick="retrySingleGeocode(${idx})">
+                <i class="fa-solid fa-rotate"></i> 重试
+            </button>
+        </div>
+    `).join('');
+}
+
+/**
+ * Retry a single failed geocoding entry
+ */
+async function retrySingleGeocode(idx) {
+    const entry = failedGeoEntries[idx];
+    if (!entry) return;
+    
+    const btn = document.getElementById(`retry-btn-${idx}`);
+    const item = document.getElementById(`fail-item-${idx}`);
+    
+    btn.className = 'geocode-retry-btn retrying';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 解析中...';
+    
+    const coords = await freeGeocode(entry.address);
+    
+    if (coords) {
+        // Success! Add to people data
+        peopleData.push({ name: entry.name, lat: coords.lat, lng: coords.lng, address: entry.address, group: entry.group || '未分组' });
+        saveData();
+        renderAllMapVisuals();
+        updateResultsByActiveTarget();
+        
+        btn.className = 'geocode-retry-btn done';
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> 成功';
+        item.className = 'geocode-fail-item success';
+        
+        // Remove from failed list
+        failedGeoEntries[idx] = null;
+        updateFailCount();
+    } else {
+        btn.className = 'geocode-retry-btn';
+        btn.innerHTML = '<i class="fa-solid fa-rotate"></i> 重试';
+    }
+}
+
+/**
+ * Retry all failed entries sequentially with exponential backoff
+ */
+async function retryAllFailed() {
+    const retryBtn = document.getElementById('retry-all-btn');
+    retryBtn.disabled = true;
+    retryBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 重试中...';
+    
+    const statusDiv = document.getElementById('csv-status');
+    const remaining = failedGeoEntries.filter(e => e !== null);
+    let successCount = 0;
+    
+    for (let idx = 0; idx < failedGeoEntries.length; idx++) {
+        const entry = failedGeoEntries[idx];
+        if (!entry) continue; // Already resolved
+        
+        const btn = document.getElementById(`retry-btn-${idx}`);
+        const item = document.getElementById(`fail-item-${idx}`);
+        
+        btn.className = 'geocode-retry-btn retrying';
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 解析中...';
+        statusDiv.innerText = `🔄 批量重试中: ${entry.name}...`;
+        
+        let coords = null;
+        let retryDelay = 500;
+        
+        // Exponential backoff: up to 4 retries (0.5s, 1s, 2s, 4s)
+        for (let attempt = 0; attempt < 4; attempt++) {
+            coords = await freeGeocode(entry.address);
+            if (coords) break;
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+            retryDelay *= 2;
+        }
+        
+        if (coords) {
+            peopleData.push({ name: entry.name, lat: coords.lat, lng: coords.lng, address: entry.address, group: entry.group || '未分组' });
+            btn.className = 'geocode-retry-btn done';
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> 成功';
+            item.className = 'geocode-fail-item success';
+            failedGeoEntries[idx] = null;
+            successCount++;
+        } else {
+            btn.className = 'geocode-retry-btn';
+            btn.innerHTML = '<i class="fa-solid fa-rotate"></i> 重试';
+        }
+        
+        // Short delay between entries (Photon is fast)
+        await new Promise(resolve => setTimeout(resolve, 300));
+    }
+    
+    saveData();
+    renderAllMapVisuals();
+    updateResultsByActiveTarget();
+    updateFailCount();
+    
+    retryBtn.disabled = false;
+    retryBtn.innerHTML = '<i class="fa-solid fa-rotate"></i> 全部重试';
+    statusDiv.innerText = `🔄 重试完成: 成功 ${successCount} 条，剩余 ${failedGeoEntries.filter(e => e !== null).length} 条`;
+}
+
+/**
+ * Update the fail count display
+ */
+function updateFailCount() {
+    const remaining = failedGeoEntries.filter(e => e !== null).length;
+    document.getElementById('fail-count').textContent = remaining;
+    if (remaining === 0) {
+        document.getElementById('geocode-fail-panel').style.display = 'none';
+        document.getElementById('csv-status').innerText = `🎉 所有人员数据已成功导入！共 ${peopleData.length} 人`;
+    }
+}
 
 function toggleProbeMode() {
     mapManager.isProbeMode = !mapManager.isProbeMode;
@@ -412,6 +1007,7 @@ function saveCurrentAsTarget() {
     const newTarget = {
         id: Date.now(),
         name: name,
+        address: tempAddressName || `${tempLatLng.lat.toFixed(5)}, ${tempLatLng.lng.toFixed(5)}`,
         lat: tempLatLng.lat,
         lng: tempLatLng.lng,
         radius: radius,
@@ -466,6 +1062,9 @@ function renderTargetsList() {
                 <span class="badge badge-amber">${t.radius} km</span>
             </div>
             <div style="display:flex; gap:4px;">
+                <button class="btn btn-outline btn-sm" onclick="copyTargetAreaPeople(${t.id}, event)" title="复制该覆盖区域内的人员信息">
+                    <i class="fa-solid fa-copy"></i>
+                </button>
                 <button class="btn btn-outline btn-sm" onclick="editTargetName(${t.id}, event)" title="修改中心名称">
                     <i class="fa-solid fa-pen"></i>
                 </button>
@@ -476,6 +1075,10 @@ function renderTargetsList() {
         `;
         listDiv.appendChild(div);
     });
+
+    // Show/hide batch toolbar
+    const batchBar = document.getElementById('targets-batch-bar');
+    if (batchBar) batchBar.style.display = targetPoints.length > 0 ? 'flex' : 'none';
 }
 
 function toggleTargetVisibility(id, event) {
@@ -531,6 +1134,122 @@ function deleteTarget(id, event) {
             mapManager.clearRoutesAndSpokes();
             updateResults();
         }
+    }
+}
+
+// ===================== Batch Operations =====================
+
+function batchSelectAll() {
+    targetPoints.forEach(t => t.visible = true);
+    saveData();
+    renderAllMapVisuals();
+}
+
+function batchInvertSelect() {
+    targetPoints.forEach(t => t.visible = !t.visible);
+    saveData();
+    renderAllMapVisuals();
+}
+
+// 按人员去重导出：每人仅对应距离最近的1个勾选中心
+function batchCopyByNearestTarget() {
+    const selected = targetPoints.filter(t => t.visible);
+    if (selected.length === 0) {
+        alert('请先勾选至少一个覆盖区！');
+        return;
+    }
+    
+    let text = `姓名\t人员地址\t目标地址\t所属覆盖区\t距离(公里)\n`;
+    let totalCount = 0;
+    
+    peopleData.forEach(p => {
+        let nearestTarget = null;
+        let minDist = Infinity;
+        
+        selected.forEach(target => {
+            const distKm = L.latLng(p.lat, p.lng).distanceTo(L.latLng(target.lat, target.lng)) / 1000;
+            if (distKm <= target.radius && distKm < minDist) {
+                minDist = distKm;
+                nearestTarget = target;
+            }
+        });
+        
+        if (nearestTarget) {
+            const targetAddr = nearestTarget.address || nearestTarget.name;
+            text += `${p.name}\t${p.address}\t${targetAddr}\t${nearestTarget.name}\t${minDist.toFixed(2)}\n`;
+            totalCount++;
+        }
+    });
+    
+    if (totalCount === 0) {
+        alert('勾选的覆盖区内没有人员数据。');
+        return;
+    }
+    
+    navigator.clipboard.writeText(text).then(() => {
+        alert(`已成功复制 ${totalCount} 名人员数据（已自动去重，每人对应最近中心）！可以直接粘贴到 Excel。`);
+    }).catch(() => alert('复制失败，请重试。'));
+}
+
+// 按覆盖区明细导出：包含重叠区域人员
+function batchCopyAllDetails() {
+    const selected = targetPoints.filter(t => t.visible);
+    if (selected.length === 0) {
+        alert('请先勾选至少一个覆盖区！');
+        return;
+    }
+    
+    let text = `姓名\t人员地址\t目标地址\t所属覆盖区\t距离(公里)\n`;
+    let totalCount = 0;
+    
+    selected.forEach(target => {
+        const targetAddr = target.address || target.name;
+        peopleData.forEach(p => {
+            const distKm = L.latLng(p.lat, p.lng).distanceTo(L.latLng(target.lat, target.lng)) / 1000;
+            if (distKm <= target.radius) {
+                text += `${p.name}\t${p.address}\t${targetAddr}\t${target.name}\t${distKm.toFixed(2)}\n`;
+                totalCount++;
+            }
+        });
+    });
+    
+    if (totalCount === 0) {
+        alert('勾选的覆盖区内没有人员数据。');
+        return;
+    }
+    
+    navigator.clipboard.writeText(text).then(() => {
+        alert(`已成功复制 ${selected.length} 个覆盖区共 ${totalCount} 条明细数据！可以直接粘贴到 Excel。`);
+    }).catch(() => alert('复制失败，请重试。'));
+}
+
+function batchDeleteSelected() {
+    const selected = targetPoints.filter(t => t.visible);
+    if (selected.length === 0) {
+        alert('请先勾选要删除的覆盖区！');
+        return;
+    }
+    
+    if (!confirm(`确定要删除勾选的 ${selected.length} 个覆盖区吗？`)) return;
+    
+    const selectedIds = new Set(selected.map(t => t.id));
+    targetPoints = targetPoints.filter(t => !selectedIds.has(t.id));
+    
+    if (selectedIds.has(activeTargetId)) {
+        activeTargetId = targetPoints.length > 0 ? targetPoints[0].id : null;
+        if (!activeTargetId) {
+            mapManager.clearActiveCircle();
+            document.getElementById('center-info').innerText = '当前未选定目标中心';
+        }
+    }
+    
+    saveData();
+    renderAllMapVisuals();
+    if (activeTargetId) {
+        selectTarget(activeTargetId);
+    } else {
+        mapManager.clearRoutesAndSpokes();
+        updateResults();
     }
 }
 
@@ -721,13 +1440,18 @@ function updateResultsByActiveTarget() {
 // Wrapper export functions for exporter.js
 function handleCopySingleCircle() {
     let targetName = "未保存中心";
+    let targetAddress = "";
     if (activeTargetId) {
         const target = targetPoints.find(t => t.id === activeTargetId);
-        if (target) targetName = target.name;
+        if (target) {
+            targetName = target.name;
+            targetAddress = target.address || '';
+        }
     } else if (tempAddressName) {
         targetName = tempAddressName;
+        targetAddress = tempAddressName;
     }
-    copySingleCircleResults(window.lastResults, targetName);
+    copySingleCircleResults(window.lastResults, targetName, targetAddress);
 }
 
 function handleCopyAllOriginalOrder() {
@@ -736,4 +1460,55 @@ function handleCopyAllOriginalOrder() {
 
 function handleExportCSV() {
     exportCSVResults(peopleData, targetPoints);
+}
+
+/**
+ * Copy people within a specific target's coverage area to clipboard
+ */
+function copyTargetAreaPeople(targetId, event) {
+    if (event) event.stopPropagation();
+    
+    const target = targetPoints.find(t => t.id === targetId);
+    if (!target) return;
+    
+    // Find all people within this target's radius
+    const results = [];
+    peopleData.forEach(p => {
+        const distKm = L.latLng(p.lat, p.lng).distanceTo(L.latLng(target.lat, target.lng)) / 1000;
+        if (distKm <= target.radius) {
+            results.push({ name: p.name, address: p.address, distance: distKm });
+        }
+    });
+    
+    if (results.length === 0) {
+        alert(`「${target.name}」覆盖范围内没有人员数据。`);
+        return;
+    }
+    
+    // Sort by distance
+    results.sort((a, b) => a.distance - b.distance);
+    
+    // Build TSV text for clipboard (paste-friendly for Excel)
+    const targetAddr = target.address || target.name;
+    let text = `覆盖区: ${target.name} (半径: ${target.radius} km, 共 ${results.length} 人)\n`;
+    text += `姓名\t人员地址\t目标地址\t距离(公里)\n`;
+    results.forEach(r => {
+        text += `${r.name}\t${r.address}\t${targetAddr}\t${r.distance.toFixed(2)}\n`;
+    });
+    
+    navigator.clipboard.writeText(text).then(() => {
+        // Visual feedback on the button
+        const btns = document.querySelectorAll(`[onclick*="copyTargetAreaPeople(${targetId}"]`);
+        btns.forEach(btn => {
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+            btn.style.color = 'var(--accent-emerald)';
+            btn.style.borderColor = 'var(--accent-emerald)';
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                btn.style.color = '';
+                btn.style.borderColor = '';
+            }, 1500);
+        });
+    }).catch(() => { alert('复制失败，请重试。'); });
 }

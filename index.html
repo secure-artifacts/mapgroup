@@ -22,6 +22,7 @@
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="js/countries.js"></script>
 </head>
 <body data-theme="dark">
 
@@ -91,22 +92,73 @@
                         <i class="fa-solid fa-wand-magic-sparkles"></i> 试用示例数据
                     </button>
                 </div>
+                <div class="form-group" style="margin-bottom:10px;">
+                    <label style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                        <i class="fa-solid fa-earth-americas" style="color:var(--accent-blue);"></i>
+                        <span>选择人员所在国家 (地址解析偏好)</span>
+                    </label>
+                    <div style="position:relative;">
+                        <input type="text" id="country-selector" class="form-control" 
+                               list="country-datalist" 
+                               placeholder="🔍 输入国家名 (中/英文) 如: 美国 / United States" 
+                               autocomplete="off"
+                               style="padding-left:10px; font-size:12px;">
+                        <datalist id="country-datalist"></datalist>
+                    </div>
+                    <div style="font-size:10px; color:var(--text-muted); margin-top:3px;">选择后导入的地址将优先在该国范围内解析，提高准确率</div>
+                </div>
+                <div class="form-group" style="margin-bottom:10px;">
+                    <label style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                        <i class="fa-solid fa-key" style="color:var(--accent-amber);"></i>
+                        <span>Geoapify API Key (可选，更精准)</span>
+                    </label>
+                    <div style="display:flex; gap:6px;">
+                        <input type="text" id="geoapify-api-key" class="form-control" 
+                               placeholder="粘贴你的 Geoapify API Key" 
+                               style="font-size:11px; flex:1;"
+                               oninput="saveGeoapifyKey()">
+                        <button class="btn btn-outline btn-sm" onclick="testGeoapifyKey()" title="测试 API Key">
+                            <i class="fa-solid fa-plug"></i>
+                        </button>
+                    </div>
+                    <div style="font-size:10px; color:var(--text-muted); margin-top:3px;">
+                        免费 3000次/天 · 
+                        <a href="https://myprojects.geoapify.com/register" style="color:var(--accent-blue);" target="_blank">免费注册获取 Key</a>
+                    </div>
+                    <div id="geoapify-status" style="font-size:10px; margin-top:3px;"></div>
+                </div>
                 <div class="dropzone">
                     <input type="file" id="csv-file-input" accept=".csv">
                     <div class="dropzone-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
                     <div style="font-size:12px; font-weight:600;">点击或拖拽 CSV 文件至此处导入</div>
-                    <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">支持格式：姓名, 纬度, 经度, 详细地址 (或 姓名, 地址)</div>
+                    <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">支持格式：组名,姓名,地址 | 姓名,地址 | 姓名,纬度,经度,地址</div>
                 </div>
                 <div class="progress-bar-container" id="csv-progress-wrap" style="display:none;">
                     <div class="progress-bar-fill" id="csv-progress-fill"></div>
                 </div>
                 <div id="csv-status" style="font-size:11px; color:var(--accent-emerald);"></div>
+                <!-- Failed geocoding results with retry buttons -->
+                <div id="geocode-fail-panel" style="display:none; margin-top:8px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <span style="font-size:11px; font-weight:700; color:#ef4444;">
+                            <i class="fa-solid fa-triangle-exclamation"></i> 
+                            解析失败 (<span id="fail-count">0</span>)
+                        </span>
+                        <button class="btn btn-outline btn-sm" onclick="retryAllFailed()" id="retry-all-btn">
+                            <i class="fa-solid fa-rotate"></i> 全部重试
+                        </button>
+                    </div>
+                    <div id="geocode-fail-list" style="max-height:200px; overflow-y:auto;"></div>
+                </div>
             </div>
 
             <div class="section-card">
                 <div class="section-title"><i class="fa-solid fa-user-plus"></i> 手动添加单个人员</div>
                 <div class="form-group">
-                    <input type="text" id="add-name" class="form-control" placeholder="姓名 / 标识符 (如: 张三)">
+                    <div class="input-group" style="margin-bottom:4px;">
+                        <input type="text" id="add-name" class="form-control" placeholder="姓名" style="flex:1;">
+                        <input type="text" id="add-group" class="form-control" placeholder="组名 (可选)" style="flex:1;">
+                    </div>
                     <div class="input-group">
                         <input type="text" id="add-address" class="form-control" placeholder="详细地址 或 Lat, Lng 坐标">
                         <button class="btn btn-primary" onclick="addSinglePerson()">
@@ -115,6 +167,41 @@
                     </div>
                     <div id="add-status" style="font-size:11px; color:var(--accent-emerald);"></div>
                 </div>
+            </div>
+
+            <!-- Data Export/Import -->
+            <div class="section-card">
+                <div class="section-header">
+                    <span class="section-title"><i class="fa-solid fa-database"></i> 数据管理</span>
+                </div>
+                <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                    <button class="btn btn-outline btn-sm" onclick="exportAllData()">
+                        <i class="fa-solid fa-download"></i> 导出全部数据
+                    </button>
+                    <button class="btn btn-outline btn-sm" onclick="triggerImportData()">
+                        <i class="fa-solid fa-upload"></i> 导入数据文件
+                    </button>
+                    <input type="file" id="import-data-input" accept=".json" style="display:none;" onchange="importAllData(event)">
+                </div>
+                <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">导出为 JSON 文件，可在其他设备或用户间分享导入</div>
+            </div>
+
+            <!-- Group Panel -->
+            <div class="section-card" style="flex:1;">
+                <div class="section-header">
+                    <span class="section-title">
+                        <i class="fa-solid fa-layer-group"></i> 人员分组
+                    </span>
+                    <div style="display:flex; gap:4px;">
+                        <button class="btn btn-outline btn-sm" onclick="showAllGroups()" title="全部显示">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                        <button class="btn btn-outline btn-sm" onclick="hideAllGroups()" title="全部隐藏">
+                            <i class="fa-solid fa-eye-slash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="group-panel" class="item-list" style="max-height:300px; overflow-y:auto;"></div>
             </div>
 
             <div class="section-card" style="flex:1;">
@@ -180,9 +267,26 @@
                         <span>设定当前覆盖半径 (公里)</span>
                         <span id="radius-val-label" style="color:var(--accent-blue)">5.0 km</span>
                     </label>
-                    <input type="range" id="search-radius-slider" min="0.5" max="30" step="0.5" value="5" oninput="onRadiusSliderInput(this.value)">
+                    <input type="range" id="search-radius-slider" min="1" max="500" step="1" value="5" oninput="onRadiusSliderInput(this.value)">
                 </div>
                 <div id="targets-list" class="item-list" style="flex:1;"></div>
+                <div id="targets-batch-bar" style="display:none; padding:6px 0; display:flex; gap:4px; flex-wrap:wrap; justify-content:center; border-top:1px solid rgba(255,255,255,0.06); margin-top:6px; padding-top:8px;">
+                    <button class="btn btn-outline btn-sm" onclick="batchSelectAll()" title="全选">
+                        <i class="fa-solid fa-check-double"></i> 全选
+                    </button>
+                    <button class="btn btn-outline btn-sm" onclick="batchInvertSelect()" title="反选">
+                        <i class="fa-solid fa-right-left"></i> 反选
+                    </button>
+                    <button class="btn btn-primary btn-sm" onclick="batchCopyByNearestTarget()" title="按人员去重导出：每人只归属于距离最近的1个中心">
+                        <i class="fa-solid fa-user-check"></i> 复制(按人员去重)
+                    </button>
+                    <button class="btn btn-outline btn-sm" onclick="batchCopyAllDetails()" title="按区域平铺导出：重叠区域人员会重复出现">
+                        <i class="fa-solid fa-copy"></i> 复制(按区域明细)
+                    </button>
+                    <button class="btn btn-danger btn-sm" onclick="batchDeleteSelected()" title="删除勾选的覆盖区">
+                        <i class="fa-solid fa-trash"></i> 批量删除
+                    </button>
+                </div>
                 <div style="font-size:11px; color:var(--text-muted); text-align:center; padding-top:4px;" id="center-info">当前未选定目标中心</div>
             </div>
         </div>

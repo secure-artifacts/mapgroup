@@ -47,7 +47,45 @@ class MapManager {
      * Renders Enterprise High-Contrast Personnel Markers.
      * Inherits group theme color and supports permanent name label toggle.
      */
-    renderPeopleMarkers(peopleData, targetPoints = []) {
+    /**
+     * Groups people by proximity — returns a Map keyed by "lat,lng" bucket
+     * with value being an array of { originalIndex, person } objects.
+     * Threshold ~0.00015° ≈ ~15 meters — anything closer is considered "same location".
+     */
+    _groupByLocation(peopleData) {
+        const THRESHOLD = 0.00015;
+        const buckets = new Map(); // key: "roundedLat,roundedLng" => [{idx, person}]
+
+        peopleData.forEach((p, idx) => {
+            const bucketKey = `${(Math.round(p.lat / THRESHOLD) * THRESHOLD).toFixed(6)},${(Math.round(p.lng / THRESHOLD) * THRESHOLD).toFixed(6)}`;
+            if (!buckets.has(bucketKey)) {
+                buckets.set(bucketKey, []);
+            }
+            buckets.get(bucketKey).push({ idx, person: p });
+        });
+
+        return buckets;
+    }
+
+    /**
+     * Calculate offset coordinates for markers sharing the same location.
+     * Distributes them in a circle; offset size adapts to current zoom level.
+     */
+    _getOffsetLatLng(baseLat, baseLng, memberIndex, totalMembers) {
+        if (totalMembers <= 1) return [baseLat, baseLng];
+
+        // Offset radius in degrees — decreases with zoom for natural feel
+        const zoom = this.map.getZoom();
+        const offsetRadius = 0.0006 * Math.pow(2, 15 - zoom); // ~60m at zoom 15
+
+        const angle = (2 * Math.PI * memberIndex) / totalMembers - Math.PI / 2;
+        const offsetLat = baseLat + offsetRadius * Math.sin(angle);
+        const offsetLng = baseLng + offsetRadius * Math.cos(angle);
+
+        return [offsetLat, offsetLng];
+    }
+
+    renderPeopleMarkers(peopleData, targetPoints = [], groupMeta = {}) {
         this.peopleMarkers.forEach(m => this.map.removeLayer(m));
         this.peopleMarkers = [];
 
@@ -57,56 +95,112 @@ class MapManager {
             if(t.visible) targetColorMap[t.id] = t.color;
         });
 
-        peopleData.forEach((p, idx) => {
-            // Find which target/group this person belongs to
-            let matchedTarget = null;
-            let minDistance = Infinity;
+        // Detect overlapping locations
+        const locationBuckets = this._groupByLocation(peopleData);
 
-            targetPoints.forEach(t => {
-                if(!t.visible) return;
-                const d = L.latLng(p.lat, p.lng).distanceTo(L.latLng(t.lat, t.lng)) / 1000;
-                if (d <= t.radius && d < minDistance) {
-                    minDistance = d;
-                    matchedTarget = t;
-                }
+        // Build a lookup: originalIndex -> { offsetIndex, totalAtLocation }
+        const offsetInfo = {};
+        locationBuckets.forEach((members) => {
+            members.forEach((m, posInGroup) => {
+                offsetInfo[m.idx] = {
+                    posInGroup,
+                    totalAtLocation: members.length,
+                    centerLat: members[0].person.lat,
+                    centerLng: members[0].person.lng
+                };
             });
+        });
 
-            const groupColor = matchedTarget ? matchedTarget.color : '#3b82f6';
-            const groupName = matchedTarget ? matchedTarget.name : '未归组';
-            const personIndex = idx + 1;
+        peopleData.forEach((p, idx) => {
+            // Color by person's own group first, fall back to target proximity
+            let groupColor = '#4285F4';
+            let groupName = p.group || '未分组';
+            let minDistance = Infinity;
+            
+            // Use group meta color if available
+            if (p.group && groupMeta[p.group]) {
+                groupColor = groupMeta[p.group].color;
+                // Still calculate min distance to nearest target for popup info
+                targetPoints.forEach(t => {
+                    if(!t.visible) return;
+                    const d = L.latLng(p.lat, p.lng).distanceTo(L.latLng(t.lat, t.lng)) / 1000;
+                    if (d <= t.radius && d < minDistance) {
+                        minDistance = d;
+                    }
+                });
+            } else {
+                // Fall back to target-based coloring
+                let matchedTarget = null;
 
-            // Name label HTML (Shown only if showPersonLabels is TRUE)
-            const nameBadgeHTML = this.showPersonLabels ? `
-                <div class="person-name-badge" style="border-color:${groupColor};">
-                    <i class="fa-solid fa-user" style="color:${groupColor}"></i>
-                    <span>${p.name}</span>
-                </div>
-            ` : '';
+                targetPoints.forEach(t => {
+                    if(!t.visible) return;
+                    const d = L.latLng(p.lat, p.lng).distanceTo(L.latLng(t.lat, t.lng)) / 1000;
+                    if (d <= t.radius && d < minDistance) {
+                        minDistance = d;
+                        matchedTarget = t;
+                    }
+                });
 
-            // Icon size & anchor adjustment
-            const iconWidth = this.showPersonLabels ? 150 : 32;
-            const iconHeight = 32;
+                if (matchedTarget) {
+                    groupColor = matchedTarget.color;
+                    groupName = matchedTarget.name;
+                }
+            }
+
+            // Get offset info for this person
+            const info = offsetInfo[idx];
+            const isOverlapping = info.totalAtLocation > 1;
+
+            // Calculate display position (offset if overlapping)
+            let displayLat = p.lat;
+            let displayLng = p.lng;
+            if (isOverlapping) {
+                [displayLat, displayLng] = this._getOffsetLatLng(
+                    info.centerLat, info.centerLng,
+                    info.posInGroup, info.totalAtLocation
+                );
+            }
+
+            // Clean Google Maps-style teardrop pin SVG
+            const pinSvg = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="40" viewBox="0 0 28 40">
+                    <defs>
+                        <filter id="shadow${idx}" x="-20%" y="-10%" width="140%" height="130%">
+                            <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#000" flood-opacity="0.3"/>
+                        </filter>
+                    </defs>
+                    <path d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.268 21.732 0 14 0z" 
+                          fill="${groupColor}" filter="url(#shadow${idx})"/>
+                    <circle cx="14" cy="14" r="5" fill="#fff"/>
+                </svg>
+            `;
 
             const customIcon = L.divIcon({
-                className: 'person-custom-marker',
-                html: `
-                    <div class="person-marker-wrapper">
-                        <div class="person-marker-pin-large" style="background-color:${groupColor};">
-                            ${personIndex}
-                        </div>
-                        ${nameBadgeHTML}
-                    </div>
-                `,
-                iconSize: [iconWidth, iconHeight],
-                iconAnchor: [16, 16]
+                className: 'person-pin-marker',
+                html: pinSvg,
+                iconSize: [28, 40],
+                iconAnchor: [14, 40],
+                popupAnchor: [0, -36]
             });
 
-            const marker = L.marker([p.lat, p.lng], { icon: customIcon }).addTo(this.map);
+            // Use offset position for display, keep original coords for popup info
+            const marker = L.marker([displayLat, displayLng], {
+                icon: customIcon,
+                zIndexOffset: isOverlapping ? (info.posInGroup * 10) : 0
+            }).addTo(this.map);
+
+            // Show name on hover as a clean tooltip
+            marker.bindTooltip(p.name, {
+                direction: 'top',
+                offset: [0, -38],
+                className: 'person-tooltip'
+            });
 
             marker.bindPopup(`
                 <div style="font-size:12px; color:#000; padding:6px; min-width:160px;">
                     <div style="font-weight:bold; font-size:14px; color:${groupColor}">👤 ${p.name}</div>
                     <div style="color:#666; margin-top:3px;">${p.address}</div>
+                    ${isOverlapping ? `<div style="margin-top:4px; font-size:10px; color:#f59e0b; background:#fef3c7; padding:3px 8px; border-radius:6px;">📍 同地点共 ${info.totalAtLocation} 人</div>` : ''}
                     <div style="margin-top:6px; font-size:11px; color:#555; background:#f1f5f9; padding:4px 8px; border-radius:6px;">
                         归属组: <strong>${groupName}</strong> ${minDistance < Infinity ? `(${minDistance.toFixed(2)} km)` : ''}
                     </div>
@@ -114,6 +208,18 @@ class MapManager {
             `);
             this.peopleMarkers.push(marker);
         });
+
+        // Re-apply offsets when zoom changes so spread adapts
+        if (!this._zoomOffsetHandler) {
+            this._zoomOffsetHandler = () => {
+                if (this._lastPeopleData && this._lastTargetPoints) {
+                    this.renderPeopleMarkers(this._lastPeopleData, this._lastTargetPoints);
+                }
+            };
+            this.map.on('zoomend', this._zoomOffsetHandler);
+        }
+        this._lastPeopleData = peopleData;
+        this._lastTargetPoints = targetPoints;
     }
 
     /**
