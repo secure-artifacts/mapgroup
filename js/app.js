@@ -15,7 +15,7 @@ let activeGroupFilter = null; // null = show all, string = filter by group name
 
 window.onload = function() {
     mapManager = new MapManager('map-container');
-    mapManager.init(APP_CONFIG.DEFAULT_CENTER, APP_CONFIG.DEFAULT_ZOOM, handleMapClick, handleMapMouseMove);
+    mapManager.init(APP_CONFIG.DEFAULT_CENTER, APP_CONFIG.DEFAULT_ZOOM, handleMapClick, handleMapMouseMove, onAltWheelResizeHandler);
 
     // Initialize searchable country selector
     if (typeof initCountrySelector === 'function') initCountrySelector();
@@ -148,10 +148,60 @@ function renderAllMapVisuals() {
     // Filter people by group visibility
     const visiblePeople = getVisiblePeople();
     mapManager.renderPeopleMarkers(visiblePeople, targetPoints, groupMeta);
-    mapManager.renderTargetMarkers(targetPoints, visiblePeople, selectTarget);
+    mapManager.renderTargetMarkers(targetPoints, visiblePeople, selectTarget, onTargetMoveHandler, onTargetResizeHandler);
     mapManager.renderAllTargetCircles(targetPoints, activeTargetId);
     mapManager.drawAllGroupSpokeLines(visiblePeople, targetPoints);
     mapManager.drawGroupTerritoryPolygons(visiblePeople, targetPoints);
+}
+
+function onTargetMoveHandler(id, lat, lng, isFinal = false) {
+    const target = targetPoints.find(t => t.id === id);
+    if (!target) return;
+    target.lat = lat;
+    target.lng = lng;
+    target.address = `自定义位置 (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+
+    if (isFinal) {
+        saveData();
+        renderAllMapVisuals();
+    } else {
+        const visiblePeople = getVisiblePeople();
+        mapManager.renderAllTargetCircles(targetPoints, activeTargetId);
+        mapManager.drawAllGroupSpokeLines(visiblePeople, targetPoints);
+        mapManager.drawGroupTerritoryPolygons(visiblePeople, targetPoints);
+        updateGlobalStats();
+    }
+}
+
+function onTargetResizeHandler(id, newRadius) {
+    const target = targetPoints.find(t => t.id === id);
+    if (!target) return;
+    target.radius = newRadius;
+
+    if (id === activeTargetId) {
+        const slider = document.getElementById('search-radius-slider');
+        if (slider) slider.value = newRadius;
+        const numberInput = document.getElementById('search-radius-number');
+        if (numberInput) numberInput.value = newRadius;
+        const label = document.getElementById('radius-val-label');
+        if (label) label.innerText = `${newRadius.toFixed(1)} km`;
+    }
+
+    saveData();
+    renderAllMapVisuals();
+}
+
+function onAltWheelResizeHandler(deltaKm) {
+    if (activeTargetId) {
+        const target = targetPoints.find(t => t.id === activeTargetId);
+        if (target) {
+            const newR = Math.max(0.5, parseFloat((target.radius + deltaKm).toFixed(1)));
+            onTargetResizeHandler(activeTargetId, newR);
+        }
+    } else if (tempLatLng) {
+        const newR = Math.max(0.5, parseFloat((currentTempRadius + deltaKm).toFixed(1)));
+        onTempRadiusInput(newR);
+    }
 }
 
 function saveData() {

@@ -22,13 +22,26 @@ class MapManager {
         this.showPersonLabels = true; // Global Toggle for Personnel Name Labels
     }
 
-    init(defaultCenter, defaultZoom, onMapClick, onMapMouseMove) {
+    init(defaultCenter, defaultZoom, onMapClick, onMapMouseMove, onAltWheelResize) {
         this.map = L.map(this.containerId, { zoomControl: false }).setView(defaultCenter, defaultZoom);
         L.control.zoom({ position: 'bottomright' }).addTo(this.map);
         this.switchTileLayer('google_road');
 
         this.map.on('click', (e) => onMapClick(e));
         this.map.on('mousemove', (e) => onMapMouseMove(e));
+
+        // 按住 Alt 键 + 滚轮快捷调半径（防误触黑科技）
+        const container = this.map.getContainer();
+        container.addEventListener('wheel', (e) => {
+            if (e.altKey) {
+                e.preventDefault();
+                e.stopPropagation();
+                const delta = e.deltaY < 0 ? 0.5 : -0.5;
+                if (typeof onAltWheelResize === 'function') {
+                    onAltWheelResize(delta);
+                }
+            }
+        }, { passive: false });
     }
 
     switchTileLayer(providerKey) {
@@ -225,7 +238,7 @@ class MapManager {
     /**
      * Renders Group Center markers with member count badges and custom theme color.
      */
-    renderTargetMarkers(targetPoints, peopleData, onTargetSelect) {
+    renderTargetMarkers(targetPoints, peopleData, onTargetSelect, onTargetMove, onTargetResize) {
         this.targetMarkers.forEach(m => this.map.removeLayer(m));
         this.targetMarkers = [];
 
@@ -239,9 +252,9 @@ class MapManager {
             const centerIcon = L.divIcon({
                 className: 'target-center-marker',
                 html: `
-                    <div class="target-center-wrapper">
+                    <div class="target-center-wrapper" title="拖拽移动位置 | 按住 Alt 键拖拽/滚轮调节覆盖半径">
                         <div class="target-center-pin" style="background-color:${t.color};">
-                            <i class="fa-solid fa-flag"></i>
+                            <i class="fa-solid fa-arrows-up-down-left-right"></i>
                         </div>
                         <div class="target-center-title" style="border-color:${t.color};">
                             <span>${t.name}</span>
@@ -253,12 +266,54 @@ class MapManager {
                 iconAnchor: [18, 22]
             });
 
-            const marker = L.marker([t.lat, t.lng], { icon: centerIcon }).addTo(this.map);
+            const marker = L.marker([t.lat, t.lng], { 
+                icon: centerIcon,
+                draggable: true 
+            }).addTo(this.map);
+
+            let dragStartLatLng = L.latLng(t.lat, t.lng);
+            let dragStartRadius = t.radius;
+
+            marker.on('dragstart', (e) => {
+                dragStartLatLng = marker.getLatLng();
+                dragStartRadius = t.radius;
+                onTargetSelect(t.id);
+            });
+
+            marker.on('drag', (e) => {
+                const originalEvent = e.originalEvent || e.sourceTarget?._originalEvent || {};
+                const isAltPressed = originalEvent.altKey || originalEvent.shiftKey;
+                const currentPos = marker.getLatLng();
+
+                if (isAltPressed) {
+                    // 按住 Alt / Shift 键拖拽：保持原中心位置，专一修改覆盖半径
+                    marker.setLatLng(dragStartLatLng);
+                    const distKm = dragStartLatLng.distanceTo(currentPos) / 1000;
+                    const newRadius = Math.max(0.5, parseFloat(distKm.toFixed(1)));
+                    
+                    if (typeof onTargetResize === 'function') {
+                        onTargetResize(t.id, newRadius);
+                    }
+                } else {
+                    // 默认直接拖拽：挪动中心位置
+                    if (typeof onTargetMove === 'function') {
+                        onTargetMove(t.id, currentPos.lat, currentPos.lng);
+                    }
+                }
+            });
+
+            marker.on('dragend', (e) => {
+                const currentPos = marker.getLatLng();
+                if (typeof onTargetMove === 'function') {
+                    onTargetMove(t.id, currentPos.lat, currentPos.lng, true);
+                }
+            });
 
             marker.on('click', (e) => {
                 L.DomEvent.stopPropagation(e);
                 onTargetSelect(t.id);
             });
+
             this.targetMarkers.push(marker);
         });
     }
