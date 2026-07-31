@@ -487,13 +487,14 @@ class MapManager {
         }
     }
 
-    renderPreviewLayer(previewCenters) {
+    renderPreviewLayer(previewCenters, peopleData = []) {
         this.clearPreviewLayer();
         this.previewLayers = [];
 
         if (!previewCenters || previewCenters.length === 0) return;
 
         const colors = APP_CONFIG.COLORS;
+        const assignedPeopleSet = new Set();
 
         previewCenters.forEach((c, idx) => {
             const color = colors[idx % colors.length];
@@ -528,9 +529,10 @@ class MapManager {
                 this.previewLayers.push(circle);
             }
 
-            // 3. 正式标准辐射连线 (Spokes)
+            // 3. 正式标准辐射连线 (Spokes) 与 组员 Marker 染色
             if (c.people && c.people.length > 0) {
                 c.people.forEach(p => {
+                    assignedPeopleSet.add(p.name + '_' + p.lat + '_' + p.lng);
                     const distKm = centerLatLng.distanceTo(L.latLng(p.lat, p.lng)) / 1000;
                     const line = L.polyline([centerLatLng, [p.lat, p.lng]], {
                         color: color,
@@ -542,20 +544,39 @@ class MapManager {
                     line.bindTooltip(`${p.name} -> ${c.name}: ${distKm.toFixed(2)} km`, { sticky: true });
                     this.previewLayers.push(line);
 
-                    // 4. 预览时同步将人员点位高亮渲染为组主题色 Marker
+                    // 4. 将被分配到该组的人员点位以组主题色彩渲染呈现
                     const pMarker = L.circleMarker([p.lat, p.lng], {
-                        radius: 6,
+                        radius: 7,
                         fillColor: color,
                         color: '#ffffff',
                         weight: 2,
                         opacity: 1,
-                        fillOpacity: 0.9
+                        fillOpacity: 0.95
                     }).addTo(this.map);
-                    pMarker.bindTooltip(`👤 ${p.name} (${c.name})`, { sticky: true });
+                    pMarker.bindTooltip(`👤 ${p.name} (归属: ${c.name})`, { sticky: true });
                     this.previewLayers.push(pMarker);
                 });
             }
         });
+
+        // 5. 将未落在任何中心覆盖范围内的孤立离群人员以半透明灰色展示
+        if (peopleData && peopleData.length > 0) {
+            peopleData.forEach(p => {
+                const key = p.name + '_' + p.lat + '_' + p.lng;
+                if (!assignedPeopleSet.has(key)) {
+                    const unassignedMarker = L.circleMarker([p.lat, p.lng], {
+                        radius: 5,
+                        fillColor: '#64748b',
+                        color: '#475569',
+                        weight: 1,
+                        opacity: 0.7,
+                        fillOpacity: 0.5
+                    }).addTo(this.map);
+                    unassignedMarker.bindTooltip(`⚠️ ${p.name} (离群未覆盖)`, { sticky: true });
+                    this.previewLayers.push(unassignedMarker);
+                }
+            });
+        }
     }
 
     clearPreviewLayer() {

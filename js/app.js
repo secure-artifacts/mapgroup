@@ -1629,7 +1629,7 @@ function drawCircle(latlng, radiusKm, color = '#3b82f6') {
     updateResults(latlng, radiusKm, color);
 }
 
-let isAlgoPreviewMode = false;
+let isAlgoPreviewMode = true;
 let latestPreviewCenters = [];
 let previewDebounceTimer = null;
 
@@ -1752,7 +1752,7 @@ function triggerAlgoLivePreview() {
         }
 
         latestPreviewCenters = computed;
-        if (mapManager) mapManager.renderPreviewLayer(computed);
+        if (mapManager) mapManager.renderPreviewLayer(computed, peopleData);
         const rBox = document.getElementById('report-box');
         if (rBox) rBox.innerHTML = reportHTML;
     }, 80);
