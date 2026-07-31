@@ -1074,16 +1074,11 @@ async function searchNearbyVenues() {
     // 搜索半径：取分组覆盖半径 (km) 转为米，最小5km最大50km
     const searchRadiusM = Math.min(50000, Math.max(5000, target.radius * 1000));
 
-    // 搜索分类：图书馆 + 社区活动中心
-    const categories = [
-        'entertainment.culture.library',
-        'building.community_centre',
-        'office.government.community_centre',
-        'leisure.community_centre'
-    ];
+    // Google Places 搜索类型：图书馆 + 社区活动中心
+    const placeTypes = ['library', 'community_center'];
 
     try {
-        const places = await searchNearbyPlaces(target.lat, target.lng, searchRadiusM, categories);
+        const places = await searchNearbyPlaces(target.lat, target.lng, searchRadiusM, placeTypes);
 
         if (places.length === 0) {
             const venuesPanel = document.getElementById('venues-results');

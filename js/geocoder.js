@@ -195,66 +195,101 @@ async function _nominatimSearch(query, countryCode) {
     return null;
 }
 
-// ======================== Geoapify Places API ========================
+// ======================== Google Places API (Nearby Search) ========================
+
+const GOOGLE_PLACES_API_KEY = 'AIzaSyBsb5UbRx5S8GYjeTJhAeTAVXahK3nlR4I';
 
 /**
- * 搜索指定经纬度附近的公共聚会场所
+ * 搜索指定经纬度附近的公共聚会场所 (Google Places Nearby Search - New API)
  * @param {number} lat - 中心纬度
  * @param {number} lng - 中心经度
  * @param {number} radiusMeters - 搜索半径 (米)
- * @param {string[]} categories - Geoapify 场所分类
+ * @param {string[]} placeTypes - Google Places 类型数组 (如 ['library', 'community_center'])
  * @returns {Promise<Array>} - 场所列表
  */
-async function searchNearbyPlaces(lat, lng, radiusMeters, categories) {
-    const apiKey = getGeoapifyKey();
-    if (!apiKey) {
-        alert('请先在【目标规划】面板中配置 Geoapify API Key！');
-        return [];
-    }
+async function searchNearbyPlaces(lat, lng, radiusMeters, placeTypes) {
+    const url = 'https://places.googleapis.com/v1/places:searchNearby';
 
-    const categoriesStr = categories.join(',');
-    const url = `https://api.geoapify.com/v2/places?categories=${categoriesStr}&filter=circle:${lng},${lat},${radiusMeters}&bias=proximity:${lng},${lat}&limit=20&apiKey=${apiKey}`;
+    const body = {
+        includedTypes: placeTypes,
+        maxResultCount: 20,
+        locationRestriction: {
+            circle: {
+                center: { latitude: lat, longitude: lng },
+                radius: radiusMeters
+            }
+        }
+    };
 
     try {
-        const resp = await fetch(url);
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Goog-Api-Key': GOOGLE_PLACES_API_KEY,
+                'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.types,places.googleMapsUri'
+            },
+            body: JSON.stringify(body)
+        });
+
         if (!resp.ok) {
-            console.warn('Geoapify Places API error:', resp.status);
+            const errText = await resp.text();
+            console.warn('Google Places API error:', resp.status, errText);
             return [];
         }
+
         const data = await resp.json();
-        if (data && data.features) {
-            return data.features.map(f => {
-                const p = f.properties;
+        if (data && data.places) {
+            return data.places.map(place => {
+                const distMeters = _haversineDistance(
+                    lat, lng,
+                    place.location.latitude, place.location.longitude
+                );
                 return {
-                    name: p.name || p.address_line1 || '未知场所',
-                    address: p.formatted || p.address_line2 || '',
-                    lat: p.lat,
-                    lng: p.lon,
-                    distance: p.distance, // 距中心距离 (米)
-                    categories: p.categories || [],
-                    placeId: p.place_id,
-                    // 场所类型友好名称
-                    typeLabel: _getPlaceTypeLabel(p.categories || [])
+                    name: place.displayName?.text || '未知场所',
+                    address: place.formattedAddress || '',
+                    lat: place.location.latitude,
+                    lng: place.location.longitude,
+                    distance: distMeters,
+                    types: place.types || [],
+                    googleMapsUri: place.googleMapsUri || '',
+                    typeLabel: _getPlaceTypeLabel(place.types || [])
                 };
-            });
+            }).sort((a, b) => a.distance - b.distance); // 按距离排序
         }
     } catch (e) {
-        console.warn('Geoapify Places search error:', e);
+        console.warn('Google Places search error:', e);
     }
     return [];
 }
 
 /**
- * 将 Geoapify 分类转为中文友好标签
+ * Haversine 公式计算两点间直线距离 (米)
  */
-function _getPlaceTypeLabel(categories) {
-    for (const cat of categories) {
-        if (cat.includes('library')) return '📚 图书馆';
-        if (cat.includes('community_centre') || cat.includes('community_center')) return '🏛️ 社区中心';
-        if (cat.includes('church') || cat.includes('christian') || cat.includes('religion')) return '⛪ 教会';
-        if (cat.includes('coffee') || cat.includes('cafe')) return '☕ 咖啡厅';
-        if (cat.includes('park')) return '🌳 公园';
-        if (cat.includes('restaurant')) return '🍽️ 餐厅';
+function _haversineDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * 将 Google Places 类型转为中文友好标签
+ */
+function _getPlaceTypeLabel(types) {
+    for (const t of types) {
+        if (t === 'library') return '📚 图书馆';
+        if (t === 'community_center') return '🏛️ 社区中心';
+        if (t === 'church') return '⛪ 教会';
+        if (t === 'cafe') return '☕ 咖啡厅';
+        if (t === 'park') return '🌳 公园';
+        if (t === 'restaurant') return '🍽️ 餐厅';
+        if (t === 'school') return '🏫 学校';
+        if (t === 'city_hall' || t === 'local_government_office') return '🏢 政府办公';
+        if (t === 'museum') return '🏛️ 博物馆';
     }
     return '📍 场所';
 }

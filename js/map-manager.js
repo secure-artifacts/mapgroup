@@ -492,7 +492,7 @@ class MapManager {
                     <div style="font-size:12px; color:#666; margin-bottom:4px;">${place.address}</div>
                     <div style="font-size:12px; color:#8b5cf6; font-weight:600;">📏 距${centerTarget ? centerTarget.name : '中心'}: ${distText}</div>
                     <div style="margin-top:6px;">
-                        <a href="https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}" target="_blank" 
+                        <a href="${place.googleMapsUri || `https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}`}" target="_blank" 
                            style="font-size:11px; color:#3b82f6; text-decoration:none;">🔗 在 Google Maps 中查看</a>
                     </div>
                 </div>
