@@ -275,14 +275,15 @@
                 <div style="margin-top:8px; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.1);">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                         <span style="font-size:11px; color:var(--text-muted);">设定默认覆盖半径 (公里):</span>
-                        <span id="temp-radius-val-label" style="font-size:11px; font-weight:700; color:var(--accent-blue);">5.0 km</span>
+                        <span id="temp-radius-val-label" style="font-size:11px; font-weight:700; color:var(--accent-blue);">50.0 km</span>
                     </div>
                     <div style="display:flex; align-items:center; gap:6px;">
-                        <input type="number" id="temp-radius-number" class="form-control" value="5" step="0.5" min="0.1" max="500" oninput="onTempRadiusInput(this.value)" style="width:75px; font-size:11px; padding:3px; text-align:center;" title="键盘直接输入精准公里数">
-                        <input type="range" id="temp-radius-slider" min="0.5" max="500" step="0.5" value="5" oninput="onTempRadiusInput(this.value)" style="flex:1;">
-                        <button class="btn btn-outline btn-sm" onclick="quickSetTempRadius(3)" style="padding:2px 6px; font-size:10px;">3km</button>
-                        <button class="btn btn-outline btn-sm" onclick="quickSetTempRadius(5)" style="padding:2px 6px; font-size:10px;">5km</button>
+                        <input type="number" id="temp-radius-number" class="form-control" value="50" step="0.5" min="0.1" max="500" oninput="onTempRadiusInput(this.value)" style="width:75px; font-size:11px; padding:3px; text-align:center;" title="键盘直接输入精准公里数">
+                        <input type="range" id="temp-radius-slider" min="0.5" max="500" step="0.5" value="50" oninput="onTempRadiusInput(this.value)" style="flex:1;">
                         <button class="btn btn-outline btn-sm" onclick="quickSetTempRadius(10)" style="padding:2px 6px; font-size:10px;">10km</button>
+                        <button class="btn btn-outline btn-sm" onclick="quickSetTempRadius(30)" style="padding:2px 6px; font-size:10px;">30km</button>
+                        <button class="btn btn-outline btn-sm" onclick="quickSetTempRadius(50)" style="padding:2px 6px; font-size:10px;">50km</button>
+                        <button class="btn btn-outline btn-sm" onclick="quickSetTempRadius(100)" style="padding:2px 6px; font-size:10px;">100km</button>
                     </div>
                 </div>
             </div>
@@ -307,11 +308,11 @@
                 <div class="form-group">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                         <span style="font-size:12px; font-weight:600;">设定所选中心独立半径 (公里):</span>
-                        <span id="radius-val-label" style="font-size:12px; font-weight:700; color:var(--accent-blue)">5.0 km</span>
+                        <span id="radius-val-label" style="font-size:12px; font-weight:700; color:var(--accent-blue)">50.0 km</span>
                     </div>
                     <div style="display:flex; align-items:center; gap:8px;">
-                        <input type="number" id="search-radius-number" class="form-control" value="5" step="0.5" min="0.1" max="500" oninput="onRadiusSliderInput(this.value)" style="width:80px; font-size:12px; padding:3px 6px; text-align:center;" title="敲击键盘直接修改当前中心半径">
-                        <input type="range" id="search-radius-slider" min="0.5" max="500" step="0.5" value="5" oninput="onRadiusSliderInput(this.value)" style="flex:1;">
+                        <input type="number" id="search-radius-number" class="form-control" value="50" step="0.5" min="0.1" max="500" oninput="onRadiusSliderInput(this.value)" style="width:80px; font-size:12px; padding:3px 6px; text-align:center;" title="敲击键盘直接修改当前中心半径">
+                        <input type="range" id="search-radius-slider" min="0.5" max="500" step="0.5" value="50" oninput="onRadiusSliderInput(this.value)" style="flex:1;">
                     </div>
                 </div>
                 <div id="targets-list" class="item-list" style="flex:1;"></div>
@@ -350,11 +351,11 @@
                 <div class="form-group" id="greedy-param">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                         <label style="margin:0;">限制最大通勤半径 (公里)</label>
-                        <span id="algo-radius-val-label" style="font-size:12px; font-weight:700; color:var(--accent-amber);">5.0 km</span>
+                        <span id="algo-radius-val-label" style="font-size:12px; font-weight:700; color:var(--accent-amber);">50.0 km</span>
                     </div>
                     <div style="display:flex; align-items:center; gap:8px;">
-                        <input type="number" id="algo-radius" class="form-control" value="5" step="0.5" min="0.1" max="500" oninput="syncAlgoRadiusInput(this.value)" style="width:85px; font-size:12px; padding:3px 6px; text-align:center;">
-                        <input type="range" id="algo-radius-slider" min="0.5" max="500" step="0.5" value="5" oninput="syncAlgoRadiusSlider(this.value)" style="flex:1;">
+                        <input type="number" id="algo-radius" class="form-control" value="50" step="0.5" min="0.1" max="500" oninput="syncAlgoRadiusInput(this.value)" style="width:85px; font-size:12px; padding:3px 6px; text-align:center;">
+                        <input type="range" id="algo-radius-slider" min="0.5" max="500" step="0.5" value="50" oninput="syncAlgoRadiusSlider(this.value)" style="flex:1;">
                     </div>
                     <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">支持输入最高 500km 或拖动滑块实时预览覆盖效果。</div>
                 </div>
@@ -500,7 +501,7 @@
 <script src="js/algorithms.js"></script>
 <script src="js/map-manager.js"></script>
 <script src="js/exporter.js"></script>
-<script src="js/app.js?v=2.9"></script>
+<script src="js/app.js?v=3.0"></script>
 
 </body>
 </html>

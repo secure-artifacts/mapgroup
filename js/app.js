@@ -7,7 +7,7 @@ let targetPoints = [];
 let activeTargetId = null;
 let tempLatLng = null;
 let tempAddressName = "";
-let currentTempRadius = 5.0; // Current exclusive radius for temporary search/probe location
+let currentTempRadius = 50.0; // Current exclusive radius for temporary search/probe location (Default 50km)
 
 // Group metadata: { groupName: { color, visible } }
 let groupMeta = {};
@@ -1296,13 +1296,13 @@ function setTempTarget(latlng, name = "定位位置") {
 }
 
 function onTempRadiusInput(val) {
-    currentTempRadius = parseFloat(val) || 5.0;
+    currentTempRadius = parseFloat(val) || 50.0;
     const label = document.getElementById('temp-radius-val-label');
     if (label) label.innerText = `${currentTempRadius.toFixed(1)} km`;
     const slider = document.getElementById('temp-radius-slider');
-    if (slider && slider.value !== currentTempRadius.toString()) slider.value = currentTempRadius;
+    if (slider && parseFloat(slider.value) !== currentTempRadius) slider.value = currentTempRadius;
     const numberInput = document.getElementById('temp-radius-number');
-    if (numberInput && numberInput.value !== currentTempRadius.toString()) numberInput.value = currentTempRadius;
+    if (numberInput && parseFloat(numberInput.value) !== currentTempRadius) numberInput.value = currentTempRadius;
 
     // 若当前存在临时搜索定位中心（未保存为目标点），实时以独占半径重绘其覆盖圆
     if (tempLatLng && !activeTargetId) {
@@ -1316,12 +1316,13 @@ function quickSetTempRadius(km) {
 }
 
 function onRadiusSliderInput(val) {
-    const r = parseFloat(val) || 5.0;
-    document.getElementById('radius-val-label').innerText = `${r.toFixed(1)} km`;
+    const r = parseFloat(val) || 50.0;
+    const label = document.getElementById('radius-val-label');
+    if (label) label.innerText = `${r.toFixed(1)} km`;
     const slider = document.getElementById('search-radius-slider');
-    if (slider && slider.value !== r.toString()) slider.value = r;
+    if (slider && parseFloat(slider.value) !== r) slider.value = r;
     const numberInput = document.getElementById('search-radius-number');
-    if (numberInput && numberInput.value !== r.toString()) numberInput.value = r;
+    if (numberInput && parseFloat(numberInput.value) !== r) numberInput.value = r;
 
     updateActiveTargetRadius();
 }
@@ -1354,7 +1355,7 @@ function selectTarget(id) {
 function updateActiveTargetRadius() {
     const numberInput = document.getElementById('search-radius-number');
     const sliderInput = document.getElementById('search-radius-slider');
-    const radius = parseFloat(numberInput ? numberInput.value : sliderInput.value) || 5;
+    const radius = parseFloat(numberInput && numberInput.value ? numberInput.value : (sliderInput ? sliderInput.value : 50)) || 50;
 
     if (activeTargetId) {
         const target = targetPoints.find(t => t.id === activeTargetId);
@@ -1381,7 +1382,7 @@ function saveCurrentAsTarget() {
     if (!name) return;
 
     // 精确使用该搜索定位中心独立设定的半径
-    const radius = currentTempRadius || 5.0;
+    const radius = currentTempRadius || 50.0;
     const color = APP_CONFIG.COLORS[targetPoints.length % APP_CONFIG.COLORS.length];
 
     const newTarget = {
