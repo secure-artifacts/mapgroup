@@ -965,7 +965,6 @@ document.addEventListener('paste', (e) => {
         importFromRawText(pastedText);
     }
 });
-});
 
 /**
  * Render the failed geocoding list with individual retry buttons
