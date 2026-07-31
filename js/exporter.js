@@ -4,6 +4,8 @@
 function cleanFieldForTSV(val) {
     if (val === null || val === undefined) return '';
     let str = String(val).trim();
+    // 彻底清除开头和结尾残留的反斜杠 \ 和多余未配对双引号 " (解决类似 "\"Michigan" 导致 Google Sheets 崩溃塌陷死穴)
+    str = str.replace(/^["'\\]+|["'\\]+$/g, '').trim();
     // 替换所有内部回车换行符为单个空格，防止破坏表格行
     str = str.replace(/[\r\n]+/g, ' ');
     // 如果包含 Tab，替换为标准空格

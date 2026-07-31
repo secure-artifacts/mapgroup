@@ -124,6 +124,19 @@ function switchTab(tabId) {
     }
 }
 
+/**
+ * 字符串清洗函数：彻底消除首尾残留的反斜杠 \ 和畸形未配对双引号 "（解决来自 Google Sheets 类似于 "\"Michigan" 的坏数据）
+ */
+function sanitizeImportedString(val) {
+    if (val === null || val === undefined) return '';
+    let str = String(val).trim();
+    // 剔除首尾不配对的引号与转义符
+    str = str.replace(/^["'\\]+|["'\\]+$/g, '').trim();
+    // 内部换行替换为单个空格
+    str = str.replace(/[\r\n]+/g, ' ').trim();
+    return str;
+}
+
 function loadSavedData() {
     const savedPeople = localStorage.getItem('global_map_people');
     const savedTargets = localStorage.getItem('global_map_targets');
@@ -132,12 +145,21 @@ function loadSavedData() {
 
     if (savedPeople) {
         peopleData = JSON.parse(savedPeople);
-        // Backward compat: add group field if missing
-        peopleData.forEach(p => { if (!p.group) p.group = '未分组'; });
+        // 自动修缮清洗历史数据中残留的坏字符
+        peopleData.forEach(p => {
+            p.name = sanitizeImportedString(p.name);
+            p.address = sanitizeImportedString(p.address);
+            p.group = sanitizeImportedString(p.group) || '未分组';
+        });
+        saveData(); // 重写清洗后的规范数据到 localStorage
     }
     if (savedTargets) {
         targetPoints = JSON.parse(savedTargets);
-        targetPoints.forEach(t => { if(t.visible === undefined) t.visible = true; });
+        targetPoints.forEach(t => { 
+            t.name = sanitizeImportedString(t.name);
+            if (t.address) t.address = sanitizeImportedString(t.address);
+            if(t.visible === undefined) t.visible = true; 
+        });
     }
     if (savedGroupMeta) {
         groupMeta = JSON.parse(savedGroupMeta);
@@ -792,17 +814,17 @@ async function processParsedRows(rows) {
         let name, address, lat, lng;
 
         if (format === '3col') {
-            group = (rows[i][0] || '').trim() || '未分组';
-            name = (rows[i][1] || '').trim();
-            address = (rows[i][2] || '').trim();
+            group = sanitizeImportedString(rows[i][0]) || '未分组';
+            name = sanitizeImportedString(rows[i][1]);
+            address = sanitizeImportedString(rows[i][2]);
         } else if (format === '4col') {
-            name = (rows[i][0] || '').trim();
-            lat = parseFloat((rows[i][1] || '').trim());
-            lng = parseFloat((rows[i][2] || '').trim());
-            address = (rows[i][3] || '').trim() || 'GPS Location';
+            name = sanitizeImportedString(rows[i][0]);
+            lat = parseFloat(sanitizeImportedString(rows[i][1]));
+            lng = parseFloat(sanitizeImportedString(rows[i][2]));
+            address = sanitizeImportedString(rows[i][3]) || 'GPS Location';
         } else {
-            name = (rows[i][0] || '').trim();
-            address = (rows[i][1] || '').trim();
+            name = sanitizeImportedString(rows[i][0]);
+            address = sanitizeImportedString(rows[i][1]);
         }
 
         if (!name) { skippedCount++; continue; }
