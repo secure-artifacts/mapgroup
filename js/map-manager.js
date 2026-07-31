@@ -238,6 +238,119 @@ class MapManager {
     }
 
     /**
+     * 为选址中心 Marker 绑定原生 Pointer/Mouse 手势拖拽控制器
+     * 解决 Leaflet divIcon 自带 draggable 的 DOM 冒泡与地图平移抢占 Bug
+     */
+    _bindNativeMarkerDrag(marker, targetId, onTargetSelect, onTargetMove, onTargetResize) {
+        const el = marker.getElement();
+        if (!el) return;
+
+        let isDragging = false;
+        let startClientX = 0;
+        let startClientY = 0;
+        let startLatLng = null;
+        let startRadius = 0;
+        let hasMoved = false;
+
+        const onPointerDown = (e) => {
+            if (e.button !== 0) return; // 仅左键响应
+            
+            // 阻止 Leaflet 地图捕获 mouse/pointer 事件进行大地图平移！
+            e.preventDefault();
+            e.stopPropagation();
+
+            isDragging = true;
+            hasMoved = false;
+            startClientX = e.clientX;
+            startClientY = e.clientY;
+            startLatLng = marker.getLatLng();
+
+            const targetObj = (this._lastTargetPoints || []).find(t => t.id === targetId);
+            if (targetObj) startRadius = targetObj.radius;
+
+            // 临时强行锁死 Leaflet 地图的原生拖拽，保障 100% 专一操纵 Marker 点！
+            if (this.map && this.map.dragging) {
+                this.map.dragging.disable();
+            }
+
+            if (typeof onTargetSelect === 'function') {
+                onTargetSelect(targetId);
+            }
+
+            const onPointerMove = (moveEvt) => {
+                if (!isDragging) return;
+                moveEvt.preventDefault();
+                moveEvt.stopPropagation();
+
+                const dx = moveEvt.clientX - startClientX;
+                const dy = moveEvt.clientY - startClientY;
+
+                if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+                    hasMoved = true;
+                }
+
+                const isAlt = window.isAltKeyPressed || window.isShiftKeyPressed || moveEvt.altKey || moveEvt.shiftKey;
+
+                // 利用 Leaflet 的像素坐标与经纬度互转矩阵计算精准点位
+                const startPoint = this.map.latLngToContainerPoint(startLatLng);
+                const currentPoint = L.point(startPoint.x + dx, startPoint.y + dy);
+                const currentLatLng = this.map.containerPointToLatLng(currentPoint);
+
+                if (isAlt) {
+                    // 按住 Alt / Shift 键拖拽：中心位置保持不动，修改独占覆盖半径
+                    marker.setLatLng(startLatLng);
+                    const distKm = startLatLng.distanceTo(currentLatLng) / 1000;
+                    const newRadius = Math.max(0.5, parseFloat(distKm.toFixed(1)));
+
+                    if (typeof onTargetResize === 'function') {
+                        onTargetResize(targetId, newRadius);
+                    }
+                } else {
+                    // 默认直接鼠标拖拽 Icon：平滑平移挪动中心位置
+                    marker.setLatLng(currentLatLng);
+                    if (typeof onTargetMove === 'function') {
+                        onTargetMove(targetId, currentLatLng.lat, currentLatLng.lng, false);
+                    }
+                }
+            };
+
+            const onPointerUp = (upEvt) => {
+                if (!isDragging) return;
+                isDragging = false;
+                upEvt.preventDefault();
+                upEvt.stopPropagation();
+
+                // 解锁重新恢复 Leaflet 地图平移
+                if (this.map && this.map.dragging) {
+                    this.map.dragging.enable();
+                }
+
+                window.removeEventListener('pointermove', onPointerMove);
+                window.removeEventListener('pointerup', onPointerUp);
+                window.removeEventListener('mousemove', onPointerMove);
+                window.removeEventListener('mouseup', onPointerUp);
+
+                const finalLatLng = marker.getLatLng();
+                const isAlt = window.isAltKeyPressed || window.isShiftKeyPressed || upEvt.altKey || upEvt.shiftKey;
+
+                if (!isAlt && hasMoved) {
+                    if (typeof onTargetMove === 'function') {
+                        onTargetMove(targetId, finalLatLng.lat, finalLatLng.lng, true);
+                    }
+                }
+            };
+
+            window.addEventListener('pointermove', onPointerMove, { passive: false });
+            window.addEventListener('pointerup', onPointerUp, { passive: false });
+            window.addEventListener('mousemove', onPointerMove, { passive: false });
+            window.addEventListener('mouseup', onPointerUp, { passive: false });
+        };
+
+        el.addEventListener('pointerdown', onPointerDown, { passive: false });
+        el.addEventListener('mousedown', onPointerDown, { passive: false });
+    }
+
+    /**
      * Renders Group Center markers with member count badges and custom theme color.
      */
     renderTargetMarkers(targetPoints, peopleData, onTargetSelect, onTargetMove, onTargetResize) {
@@ -269,68 +382,13 @@ class MapManager {
             });
 
             const marker = L.marker([t.lat, t.lng], { 
-                icon: centerIcon,
-                draggable: true,
-                autoPan: true
+                icon: centerIcon
             }).addTo(this.map);
 
-            if (marker.dragging) {
-                marker.dragging.enable();
-            }
-
-            const el = marker.getElement();
-            if (el) {
-                L.DomEvent.disableClickPropagation(el);
-                L.DomEvent.disableScrollPropagation(el);
-            }
-
-            let dragStartLatLng = L.latLng(t.lat, t.lng);
-            let dragStartRadius = t.radius;
-
-            marker.on('dragstart', (e) => {
-                dragStartLatLng = marker.getLatLng();
-                dragStartRadius = t.radius;
-                if (typeof onTargetSelect === 'function') onTargetSelect(t.id);
-            });
-
-            marker.on('drag', (e) => {
-                const originalEvent = e.originalEvent || e.sourceTarget?._originalEvent || {};
-                const isAltPressed = window.isAltKeyPressed || window.isShiftKeyPressed || originalEvent.altKey || originalEvent.shiftKey;
-                const currentPos = marker.getLatLng();
-
-                if (isAltPressed) {
-                    // 按住 Alt / Shift 键拖拽：保持原中心位置不动，专一修改独占覆盖半径
-                    marker.setLatLng(dragStartLatLng);
-                    const distKm = dragStartLatLng.distanceTo(currentPos) / 1000;
-                    const newRadius = Math.max(0.5, parseFloat(distKm.toFixed(1)));
-                    
-                    if (typeof onTargetResize === 'function') {
-                        onTargetResize(t.id, newRadius);
-                    }
-                } else {
-                    // 默认鼠标直接拖拽水滴图标：挪动选址中心位置
-                    if (typeof onTargetMove === 'function') {
-                        onTargetMove(t.id, currentPos.lat, currentPos.lng, false);
-                    }
-                }
-            });
-
-            marker.on('dragend', (e) => {
-                const originalEvent = e.originalEvent || e.sourceTarget?._originalEvent || {};
-                const isAltPressed = window.isAltKeyPressed || window.isShiftKeyPressed || originalEvent.altKey || originalEvent.shiftKey;
-                const currentPos = marker.getLatLng();
-
-                if (!isAltPressed) {
-                    if (typeof onTargetMove === 'function') {
-                        onTargetMove(t.id, currentPos.lat, currentPos.lng, true);
-                    }
-                }
-            });
-
-            marker.on('click', (e) => {
-                L.DomEvent.stopPropagation(e);
-                onTargetSelect(t.id);
-            });
+            // 挂载独立原生 Pointer/Mouse 手势拖拽接管控制器
+            setTimeout(() => {
+                this._bindNativeMarkerDrag(marker, t.id, onTargetSelect, onTargetMove, onTargetResize);
+            }, 0);
 
             this.targetMarkers.push(marker);
         });

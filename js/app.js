@@ -181,7 +181,6 @@ function onTargetMoveHandler(id, lat, lng, isFinal = false) {
         mapManager.renderAllTargetCircles(targetPoints, activeTargetId);
         mapManager.drawAllGroupSpokeLines(visiblePeople, targetPoints);
         mapManager.drawGroupTerritoryPolygons(visiblePeople, targetPoints);
-        updateGlobalStats();
     }
 }
 
