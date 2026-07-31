@@ -255,9 +255,9 @@ class MapManager {
         const onPointerDown = (e) => {
             if (e.button !== 0) return; // 仅左键响应
             
-            // 用户要求：只有按住键盘 Alt 键 (或 Shift 键) 时才响应手势拖拽！不按 Alt 键绝对不响应，100% 零误触！
-            const isAltKey = window.isAltKeyPressed || window.isShiftKeyPressed || e.altKey || e.shiftKey;
-            if (!isAltKey) return;
+            // 严格标准：必须按住键盘 Shift 键才响应鼠标拖动移动中心位置！不按 Shift 键绝不响应拖动，100% 零误触！
+            const isShiftPressed = window.isShiftKeyPressed || e.shiftKey;
+            if (!isShiftPressed) return;
 
             // 阻止 Leaflet 地图捕获 mouse/pointer 事件进行大地图平移！
             e.preventDefault();
@@ -268,9 +268,6 @@ class MapManager {
             startClientX = e.clientX;
             startClientY = e.clientY;
             startLatLng = marker.getLatLng();
-
-            const targetObj = (this._lastTargetPoints || []).find(t => t.id === targetId);
-            if (targetObj) startRadius = targetObj.radius;
 
             // 临时强行锁死 Leaflet 地图的原生拖拽，保障 100% 专一操纵 Marker 点！
             if (this.map && this.map.dragging) {
@@ -293,28 +290,15 @@ class MapManager {
                     hasMoved = true;
                 }
 
-                const isAlt = window.isAltKeyPressed || window.isShiftKeyPressed || moveEvt.altKey || moveEvt.shiftKey;
-
                 // 利用 Leaflet 的像素坐标与经纬度互转矩阵计算精准点位
                 const startPoint = this.map.latLngToContainerPoint(startLatLng);
                 const currentPoint = L.point(startPoint.x + dx, startPoint.y + dy);
                 const currentLatLng = this.map.containerPointToLatLng(currentPoint);
 
-                if (isAlt) {
-                    // 按住 Alt / Shift 键拖拽：中心位置保持不动，修改独占覆盖半径
-                    marker.setLatLng(startLatLng);
-                    const distKm = startLatLng.distanceTo(currentLatLng) / 1000;
-                    const newRadius = Math.max(0.5, parseFloat(distKm.toFixed(1)));
-
-                    if (typeof onTargetResize === 'function') {
-                        onTargetResize(targetId, newRadius);
-                    }
-                } else {
-                    // 默认直接鼠标拖拽 Icon：平滑平移挪动中心位置
-                    marker.setLatLng(currentLatLng);
-                    if (typeof onTargetMove === 'function') {
-                        onTargetMove(targetId, currentLatLng.lat, currentLatLng.lng, false);
-                    }
+                // 按住 Shift 键鼠标拖拽：唯一用于平滑挪动选址中心位置
+                marker.setLatLng(currentLatLng);
+                if (typeof onTargetMove === 'function') {
+                    onTargetMove(targetId, currentLatLng.lat, currentLatLng.lng, false);
                 }
             };
 
@@ -335,9 +319,8 @@ class MapManager {
                 window.removeEventListener('mouseup', onPointerUp);
 
                 const finalLatLng = marker.getLatLng();
-                const isAlt = window.isAltKeyPressed || window.isShiftKeyPressed || upEvt.altKey || upEvt.shiftKey;
 
-                if (!isAlt && hasMoved) {
+                if (hasMoved) {
                     requestAnimationFrame(() => {
                         if (typeof onTargetMove === 'function') {
                             onTargetMove(targetId, finalLatLng.lat, finalLatLng.lng, true);
@@ -381,7 +364,7 @@ class MapManager {
             const centerIcon = L.divIcon({
                 className: 'target-center-marker',
                 html: `
-                    <div class="target-center-wrapper" title="拖拽移动位置 | 按住 Alt 键拖拽/滚轮调节覆盖半径">
+                    <div class="target-center-wrapper" title="按住 Shift 键 + 拖拽挪动位置 | 按住 Alt 键 + 滚轮调节覆盖半径">
                         <div class="target-center-pin" style="background-color:${t.color};">
                             <i class="fa-solid fa-arrows-up-down-left-right"></i>
                         </div>
