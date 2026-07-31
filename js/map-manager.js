@@ -17,6 +17,7 @@ class MapManager {
         this.probeCircle = null;
         this.probeLines = [];
         this.isProbeMode = false;
+        this.placeMarkers = []; // 附近场所标记图层
         
         // Enterprise UI Settings
         this.showPersonLabels = true; // Global Toggle for Personnel Name Labels
@@ -453,6 +454,60 @@ class MapManager {
             this.map.removeLayer(this.activeCircle);
             this.activeCircle = null;
         }
+    }
+
+    /**
+     * 渲染附近聚会场所标记 (紫色星标)
+     */
+    renderPlaceMarkers(places, centerTarget) {
+        this.clearPlaceMarkers();
+        if (!places || places.length === 0) return;
+
+        places.forEach((place, idx) => {
+            const icon = L.divIcon({
+                className: 'place-marker-icon',
+                html: `<div style="
+                    display:flex; align-items:center; justify-content:center;
+                    width:30px; height:30px; border-radius:50%;
+                    background:linear-gradient(135deg, #8b5cf6, #a78bfa);
+                    border:2px solid #fff; box-shadow:0 2px 8px rgba(139,92,246,0.5);
+                    color:#fff; font-size:14px; cursor:pointer;
+                ">${place.typeLabel.split(' ')[0]}</div>`,
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            });
+
+            const distText = place.distance < 1000
+                ? `${Math.round(place.distance)}m`
+                : `${(place.distance / 1000).toFixed(1)}km`;
+
+            const marker = L.marker([place.lat, place.lng], {
+                icon: icon,
+                zIndexOffset: 15000
+            }).addTo(this.map);
+
+            marker.bindPopup(`
+                <div style="min-width:200px; font-family:sans-serif;">
+                    <div style="font-weight:700; font-size:14px; margin-bottom:4px;">${place.typeLabel} ${place.name}</div>
+                    <div style="font-size:12px; color:#666; margin-bottom:4px;">${place.address}</div>
+                    <div style="font-size:12px; color:#8b5cf6; font-weight:600;">📏 距${centerTarget ? centerTarget.name : '中心'}: ${distText}</div>
+                    <div style="margin-top:6px;">
+                        <a href="https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}" target="_blank" 
+                           style="font-size:11px; color:#3b82f6; text-decoration:none;">🔗 在 Google Maps 中查看</a>
+                    </div>
+                </div>
+            `, { maxWidth: 280 });
+
+            this.placeMarkers.push(marker);
+        });
+    }
+
+    /**
+     * 清除附近场所标记
+     */
+    clearPlaceMarkers() {
+        this.placeMarkers.forEach(m => this.map.removeLayer(m));
+        this.placeMarkers = [];
     }
 
     clearRoutesAndSpokes() {

@@ -194,3 +194,67 @@ async function _nominatimSearch(query, countryCode) {
     }
     return null;
 }
+
+// ======================== Geoapify Places API ========================
+
+/**
+ * 搜索指定经纬度附近的公共聚会场所
+ * @param {number} lat - 中心纬度
+ * @param {number} lng - 中心经度
+ * @param {number} radiusMeters - 搜索半径 (米)
+ * @param {string[]} categories - Geoapify 场所分类
+ * @returns {Promise<Array>} - 场所列表
+ */
+async function searchNearbyPlaces(lat, lng, radiusMeters, categories) {
+    const apiKey = getGeoapifyKey();
+    if (!apiKey) {
+        alert('请先在【目标规划】面板中配置 Geoapify API Key！');
+        return [];
+    }
+
+    const categoriesStr = categories.join(',');
+    const url = `https://api.geoapify.com/v2/places?categories=${categoriesStr}&filter=circle:${lng},${lat},${radiusMeters}&bias=proximity:${lng},${lat}&limit=20&apiKey=${apiKey}`;
+
+    try {
+        const resp = await fetch(url);
+        if (!resp.ok) {
+            console.warn('Geoapify Places API error:', resp.status);
+            return [];
+        }
+        const data = await resp.json();
+        if (data && data.features) {
+            return data.features.map(f => {
+                const p = f.properties;
+                return {
+                    name: p.name || p.address_line1 || '未知场所',
+                    address: p.formatted || p.address_line2 || '',
+                    lat: p.lat,
+                    lng: p.lon,
+                    distance: p.distance, // 距中心距离 (米)
+                    categories: p.categories || [],
+                    placeId: p.place_id,
+                    // 场所类型友好名称
+                    typeLabel: _getPlaceTypeLabel(p.categories || [])
+                };
+            });
+        }
+    } catch (e) {
+        console.warn('Geoapify Places search error:', e);
+    }
+    return [];
+}
+
+/**
+ * 将 Geoapify 分类转为中文友好标签
+ */
+function _getPlaceTypeLabel(categories) {
+    for (const cat of categories) {
+        if (cat.includes('library')) return '📚 图书馆';
+        if (cat.includes('community_centre') || cat.includes('community_center')) return '🏛️ 社区中心';
+        if (cat.includes('church') || cat.includes('christian') || cat.includes('religion')) return '⛪ 教会';
+        if (cat.includes('coffee') || cat.includes('cafe')) return '☕ 咖啡厅';
+        if (cat.includes('park')) return '🌳 公园';
+        if (cat.includes('restaurant')) return '🍽️ 餐厅';
+    }
+    return '📍 场所';
+}

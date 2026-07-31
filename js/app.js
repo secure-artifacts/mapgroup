@@ -1048,6 +1048,122 @@ window.syncAlgoKInput = syncAlgoKInput;
 window.syncAlgoKSlider = syncAlgoKSlider;
 window.toggleAlgoPreviewMode = toggleAlgoPreviewMode;
 window.applySmartGroupingPreview = applySmartGroupingPreview;
+window.searchNearbyVenues = searchNearbyVenues;
+window.clearNearbyVenues = clearNearbyVenues;
+
+// ======================== 附近聚会场所推荐 ========================
+
+/**
+ * 搜索当前选中分组中心附近的聚会场所
+ */
+async function searchNearbyVenues() {
+    if (!activeTargetId) {
+        alert('请先选择一个分组中心！点击地图上的分组水滴即可选中。');
+        return;
+    }
+
+    const target = targetPoints.find(t => t.id === activeTargetId);
+    if (!target) return;
+
+    const btn = document.getElementById('search-venues-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 搜索中...';
+    }
+
+    // 搜索半径：取分组覆盖半径 (km) 转为米，最小5km最大50km
+    const searchRadiusM = Math.min(50000, Math.max(5000, target.radius * 1000));
+
+    // 搜索分类：图书馆 + 社区活动中心
+    const categories = [
+        'entertainment.culture.library',
+        'building.community_centre',
+        'office.government.community_centre',
+        'leisure.community_centre'
+    ];
+
+    try {
+        const places = await searchNearbyPlaces(target.lat, target.lng, searchRadiusM, categories);
+
+        if (places.length === 0) {
+            const venuesPanel = document.getElementById('venues-results');
+            if (venuesPanel) {
+                venuesPanel.innerHTML = `<div style="color:var(--text-muted); text-align:center; padding:15px; font-size:12px;">
+                    在 ${target.name} 附近 ${(searchRadiusM/1000).toFixed(0)}km 范围内未找到图书馆或社区中心。<br>
+                    <span style="font-size:11px;">💡 提示：可以尝试扩大分组覆盖半径后重新搜索。</span>
+                </div>`;
+                venuesPanel.style.display = 'block';
+            }
+            mapManager.clearPlaceMarkers();
+        } else {
+            // 在地图上渲染场所标记
+            mapManager.renderPlaceMarkers(places, target);
+
+            // 在面板中渲染场所列表
+            renderVenuesList(places, target);
+        }
+    } catch (e) {
+        console.error('搜索附近场所出错:', e);
+        alert('搜索附近场所时出现网络错误，请检查 API Key 或网络连接。');
+    }
+
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-map-location-dot"></i> 搜索附近聚会场所';
+    }
+}
+
+/**
+ * 清除附近场所标记和列表
+ */
+function clearNearbyVenues() {
+    mapManager.clearPlaceMarkers();
+    const venuesPanel = document.getElementById('venues-results');
+    if (venuesPanel) {
+        venuesPanel.style.display = 'none';
+        venuesPanel.innerHTML = '';
+    }
+}
+
+/**
+ * 渲染附近场所列表到面板
+ */
+function renderVenuesList(places, target) {
+    const panel = document.getElementById('venues-results');
+    if (!panel) return;
+
+    let html = `<div style="font-weight:700; font-size:13px; margin-bottom:8px; color:var(--accent-purple);">
+        <i class="fa-solid fa-location-dot"></i> ${target.name} 附近找到 ${places.length} 个聚会场所
+        <button class="btn btn-outline btn-sm" onclick="clearNearbyVenues()" style="float:right; font-size:10px; padding:2px 8px;">
+            <i class="fa-solid fa-xmark"></i> 清除
+        </button>
+    </div>`;
+
+    places.forEach((place, idx) => {
+        const distText = place.distance < 1000
+            ? `${Math.round(place.distance)}m`
+            : `${(place.distance / 1000).toFixed(1)}km`;
+
+        html += `<div class="venue-item" style="
+            padding:8px 10px; margin-bottom:4px; border-radius:8px; cursor:pointer;
+            background:rgba(139,92,246,0.06); border:1px solid rgba(139,92,246,0.15);
+            transition:background 0.2s;
+        " onmouseenter="this.style.background='rgba(139,92,246,0.15)'"
+           onmouseleave="this.style.background='rgba(139,92,246,0.06)'"
+           onclick="mapManager.map.setView([${place.lat}, ${place.lng}], 15); mapManager.placeMarkers[${idx}]?.openPopup();">
+            <div style="font-weight:600; font-size:12px;">${place.typeLabel} ${place.name}</div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${place.address}</div>
+            <div style="font-size:11px; color:var(--accent-purple); margin-top:2px; font-weight:600;">📏 距离: ${distText}
+                <a href="https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}" target="_blank"
+                   style="float:right; font-size:10px; color:var(--accent-blue); text-decoration:none;">🔗 Google Maps</a>
+            </div>
+        </div>`;
+    });
+
+    panel.innerHTML = html;
+    panel.style.display = 'block';
+}
+
 console.log('[PasteSystem] 💡 app.js (v2.6) 已成功加载并绑定全范围 500km 数字/滑块双模调控接口！');
 
 /**
