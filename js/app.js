@@ -842,12 +842,17 @@ async function processParsedRows(rows) {
  * 打开粘贴导入弹窗面板 (100% 交互响应)
  */
 async function openPasteModal(mode = 'batch') {
+    console.log(`[PasteSystem] 🚀 触发 openPasteModal，当前模式:`, mode);
     window.currentPasteMode = mode;
     const modal = document.getElementById('paste-modal');
     const textarea = document.getElementById('paste-textarea');
     const status = document.getElementById('paste-preview-status');
     
-    if (!modal || !textarea) return;
+    if (!modal || !textarea) {
+        console.error('[PasteSystem] ❌ 找不到 paste-modal 或 paste-textarea DOM 节点！');
+        alert('页面粘贴组件未就绪，请刷新页面再试。');
+        return;
+    }
 
     modal.style.display = 'flex';
     status.innerText = '';
@@ -858,17 +863,19 @@ async function openPasteModal(mode = 'batch') {
     try {
         if (navigator.clipboard && navigator.clipboard.readText) {
             const text = await navigator.clipboard.readText();
+            console.log('[PasteSystem] 📥 成功从剪贴板读取到文本:', text);
             if (text && text.trim()) {
                 textarea.value = text;
                 previewPasteText();
             }
         }
     } catch (e) {
-        console.log('剪贴板未获直接读取授权，等待用户 Ctrl+V 粘贴:', e);
+        console.warn('[PasteSystem] ⚠️ 浏览器未允许剪贴板自动读取授权，已聚焦文本框等待用户按 Ctrl+V 粘贴:', e);
     }
 }
 
 function closePasteModal() {
+    console.log('[PasteSystem] ✖️ 关闭粘贴弹窗');
     const modal = document.getElementById('paste-modal');
     if (modal) modal.style.display = 'none';
 }
@@ -881,11 +888,13 @@ function previewPasteText() {
         return;
     }
     const lines = text.trim().split(/\r?\n/).filter(Boolean);
+    console.log(`[PasteSystem] 🔍 实时预览检测，当前有效数据行数:`, lines.length);
     status.innerText = `🔍 已识别出 ${lines.length} 行表格数据，点击“立即解析”即可开始打点！`;
 }
 
 function submitPasteModal() {
     const text = document.getElementById('paste-textarea').value;
+    console.log('[PasteSystem] ⚡ 提交粘贴文本进行解析，模式:', window.currentPasteMode, '文本长度:', text ? text.length : 0);
     if (!text || !text.trim()) {
         alert('请先在框内按 Ctrl+V 粘贴表格内容！');
         return;
@@ -897,6 +906,7 @@ function submitPasteModal() {
         const lines = text.trim().split(/\r?\n/).filter(Boolean);
         if (lines.length === 1) {
             const row = (lines[0].includes('\t') ? lines[0].split('\t') : lines[0].split(',')).map(c => c.trim()).filter(Boolean);
+            console.log('[PasteSystem] 📋 拆分单条人员数据:', row);
             if (row.length >= 3) {
                 if (document.getElementById('add-group')) document.getElementById('add-group').value = row[0];
                 if (document.getElementById('add-name')) document.getElementById('add-name').value = row[1];
@@ -921,6 +931,7 @@ window.openPasteModal = openPasteModal;
 window.closePasteModal = closePasteModal;
 window.previewPasteText = previewPasteText;
 window.submitPasteModal = submitPasteModal;
+console.log('[PasteSystem] 💡 app.js (v2.1) 已成功加载并绑定全局 pasteModal 接口！');
 
 /**
  * 解析原始文本并导入（支持从 Google Sheets / Excel 复制的数据，列由 Tab/逗号 切分）
