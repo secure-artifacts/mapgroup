@@ -937,7 +937,12 @@ window.quickSetTempRadius = quickSetTempRadius;
 window.editTargetRadius = editTargetRadius;
 window.switchSearchMode = switchSearchMode;
 window.batchSearchTargetAddresses = batchSearchTargetAddresses;
-console.log('[PasteSystem] 💡 app.js (v2.4) 已成功加载并绑定批量选址定位接口！');
+window.syncAlgoRadiusInput = syncAlgoRadiusInput;
+window.syncAlgoRadiusSlider = syncAlgoRadiusSlider;
+window.syncAlgoKSlider = syncAlgoKSlider;
+window.toggleAlgoPreviewMode = toggleAlgoPreviewMode;
+window.applySmartGroupingPreview = applySmartGroupingPreview;
+console.log('[PasteSystem] 💡 app.js (v2.5) 已成功加载并绑定智能分组动态预览接口！');
 
 /**
  * 解析原始文本并导入（支持从 Google Sheets / Excel 复制的数据，列由 Tab/逗号 切分）
@@ -1569,6 +1574,10 @@ function drawCircle(latlng, radiusKm, color = '#3b82f6') {
     updateResults(latlng, radiusKm, color);
 }
 
+let isAlgoPreviewMode = false;
+let latestPreviewCenters = [];
+let previewDebounceTimer = null;
+
 function switchAlgoUI() {
     const algo = document.getElementById('algo-select').value;
     if (algo === 'greedy_cover') {
@@ -1577,6 +1586,140 @@ function switchAlgoUI() {
     } else {
         document.getElementById('greedy-param').style.display = 'none';
         document.getElementById('kmeans-param').style.display = 'block';
+    }
+    if (isAlgoPreviewMode) {
+        triggerAlgoLivePreview();
+    }
+}
+
+function syncAlgoRadiusInput(val) {
+    const num = parseFloat(val) || 5.0;
+    const label = document.getElementById('algo-radius-val-label');
+    if (label) label.innerText = `${num.toFixed(1)} km`;
+    const slider = document.getElementById('algo-radius-slider');
+    if (slider) slider.value = num;
+
+    if (isAlgoPreviewMode) {
+        triggerAlgoLivePreview();
+    }
+}
+
+function syncAlgoRadiusSlider(val) {
+    const num = parseFloat(val) || 5.0;
+    const input = document.getElementById('algo-radius');
+    if (input) input.value = num;
+    const label = document.getElementById('algo-radius-val-label');
+    if (label) label.innerText = `${num.toFixed(1)} km`;
+
+    if (isAlgoPreviewMode) {
+        triggerAlgoLivePreview();
+    }
+}
+
+function syncAlgoKSlider(val) {
+    const k = parseInt(val) || 3;
+    const label = document.getElementById('algo-k-val-label');
+    if (label) label.innerText = `${k} 组`;
+
+    if (isAlgoPreviewMode) {
+        triggerAlgoLivePreview();
+    }
+}
+
+function toggleAlgoPreviewMode(enabled) {
+    isAlgoPreviewMode = enabled;
+    const toggleText = document.getElementById('preview-toggle-text');
+    const applyBtn = document.getElementById('apply-preview-btn');
+
+    if (enabled) {
+        if (toggleText) toggleText.innerText = '已开启 (实时拖动可预览)';
+        if (applyBtn) applyBtn.style.display = 'inline-block';
+        triggerAlgoLivePreview();
+    } else {
+        if (toggleText) toggleText.innerText = '未开启';
+        if (applyBtn) applyBtn.style.display = 'none';
+        if (mapManager) mapManager.clearPreviewLayer();
+    }
+}
+
+function triggerAlgoLivePreview() {
+    if (previewDebounceTimer) clearTimeout(previewDebounceTimer);
+
+    previewDebounceTimer = setTimeout(() => {
+        if (peopleData.length === 0) return;
+        const algo = document.getElementById('algo-select').value;
+        let computed = [];
+        let reportHTML = "";
+
+        if (algo === 'greedy_cover') {
+            const radiusKm = parseFloat(document.getElementById('algo-radius').value) || 5;
+            computed = runGreedyCoverAlgorithm(peopleData, radiusKm);
+            
+            const total = peopleData.length;
+            let covered = 0;
+            computed.forEach(c => covered += c.people.length);
+            const rate = ((covered / total) * 100).toFixed(1);
+            const isolated = total - covered;
+
+            reportHTML = `
+                <h4><i class="fa-solid fa-eye" style="color:var(--accent-amber);"></i> 🔍 实时预览中 (最大覆盖模式)</h4>
+                <div class="report-item">• <strong>当前预览半径</strong>：<strong style="color:var(--accent-blue)">${radiusKm} km</strong>。</div>
+                <div class="report-item">• <strong>智能匹配中心</strong>：共产生 <strong style="color:var(--accent-emerald)">${computed.length} 个最佳目标中心</strong>。</div>
+                <div class="report-item">• <strong>预估有效覆盖</strong>：涵盖 <strong>${covered} 人 (${rate}%)</strong>。</div>
+                <div class="report-item">• <strong>离群人员</strong>：有 <strong style="color:var(--accent-rose)">${isolated} 人</strong> 超出半径。</div>
+                <div style="font-size:11px; color:var(--accent-amber); margin-top:8px;">滑动上方半径滑块可实时看效果；调整满意后点击下方“确定保存方案”即可生效。</div>
+            `;
+        } else {
+            const k = parseInt(document.getElementById('algo-k-slider').value) || 3;
+            if (k <= peopleData.length) {
+                computed = runKMeansAlgorithm(peopleData, k);
+                reportHTML = `
+                    <h4><i class="fa-solid fa-eye" style="color:var(--accent-purple);"></i> 🔍 实时预览中 (K-Means 强行划分)</h4>
+                    <div class="report-item">• <strong>当前划分组数</strong>：<strong style="color:var(--accent-purple)">${k} 组</strong>。</div>
+                    <div class="report-item">• <strong>聚类中心</strong>：已自动找到 ${k} 个全局几何中心点。</div>
+                    <div style="font-size:11px; color:var(--accent-amber); margin-top:8px;">滑动滑块可实时观察核心点变动，满意后点击“确定保存方案”。</div>
+                `;
+            }
+        }
+
+        latestPreviewCenters = computed;
+        if (mapManager) mapManager.renderPreviewLayer(computed);
+        const rBox = document.getElementById('report-box');
+        if (rBox) rBox.innerHTML = reportHTML;
+    }, 80);
+}
+
+function applySmartGroupingPreview() {
+    if (!latestPreviewCenters || latestPreviewCenters.length === 0) {
+        runSmartGrouping();
+        return;
+    }
+
+    targetPoints = [];
+    latestPreviewCenters.forEach((c, idx) => {
+        targetPoints.push({
+            id: idx + 1,
+            name: c.name,
+            lat: c.lat,
+            lng: c.lng,
+            radius: c.radius,
+            color: APP_CONFIG.COLORS[idx % APP_CONFIG.COLORS.length],
+            visible: true
+        });
+    });
+
+    activeTargetId = targetPoints.length > 0 ? targetPoints[0].id : null;
+    toggleAlgoPreviewMode(false);
+    
+    // 取消选中 toggle
+    const toggle = document.getElementById('algo-preview-toggle');
+    if (toggle) toggle.checked = false;
+
+    saveData();
+    renderAllMapVisuals();
+    switchTab('analysis-tab');
+    if (activeTargetId) {
+        selectTarget(activeTargetId);
     }
 }
 
@@ -1660,6 +1803,13 @@ function runSmartGrouping() {
     });
 
     activeTargetId = targetPoints.length > 0 ? targetPoints[0].id : null;
+
+    if (isAlgoPreviewMode) {
+        toggleAlgoPreviewMode(false);
+        const toggle = document.getElementById('algo-preview-toggle');
+        if (toggle) toggle.checked = false;
+    }
+
     saveData();
     renderAllMapVisuals();
     document.getElementById('report-box').innerHTML = reportHTML;

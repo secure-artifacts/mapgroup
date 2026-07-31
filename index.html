@@ -344,20 +344,44 @@
                 </div>
 
                 <div class="form-group" id="greedy-param">
-                    <label>限制最大通勤半径 (公里)</label>
-                    <input type="number" id="algo-radius" class="form-control" value="5" step="0.5" min="0.1">
-                    <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">算法将扫描全局找到能覆盖最多人的坐标作为 1号中心，依次递推，自动算最少组数，并自动智能标记极偏远孤立人员。</div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <label style="margin:0;">限制最大通勤半径 (公里)</label>
+                        <span id="algo-radius-val-label" style="font-size:12px; font-weight:700; color:var(--accent-amber);">5.0 km</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input type="number" id="algo-radius" class="form-control" value="5" step="0.5" min="0.1" oninput="syncAlgoRadiusInput(this.value)" style="width:80px;">
+                        <input type="range" id="algo-radius-slider" min="0.5" max="50" step="0.5" value="5" oninput="syncAlgoRadiusSlider(this.value)" style="flex:1;">
+                    </div>
+                    <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">拖拽滑块即可在地图上实时预览选址覆盖效果，自动计算最少组数。</div>
                 </div>
 
                 <div class="form-group" id="kmeans-param" style="display:none;">
-                    <label>强制划分组数 K (个)</label>
-                    <input type="number" id="algo-k" class="form-control" value="3" min="1" max="15">
-                    <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">无论距离多远，强制将 100% 人员无死角划分为指定组数，算法自动寻找几何地理重心。</div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <label style="margin:0;">强制划分组数 K (个)</label>
+                        <span id="algo-k-val-label" style="font-size:12px; font-weight:700; color:var(--accent-purple);">3 组</span>
+                    </div>
+                    <input type="range" id="algo-k-slider" min="1" max="15" step="1" value="3" oninput="syncAlgoKSlider(this.value)" style="width:100%;">
+                    <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">无论距离多远，强制将 100% 人员无死角划分为指定组数。</div>
                 </div>
 
-                <button class="btn btn-warning" onclick="runSmartGrouping()" style="width:100%; padding:11px; font-size:13px;">
-                    <i class="fa-solid fa-bolt"></i> 一键运行 AI 智能决策分组
-                </button>
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; padding:8px 10px; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.25); border-radius:8px;">
+                    <span style="font-size:12px; font-weight:600; color:var(--accent-amber);">
+                        <i class="fa-solid fa-eye"></i> 动态实时预览模式
+                    </span>
+                    <label class="switch-toggle" style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <input type="checkbox" id="algo-preview-toggle" onchange="toggleAlgoPreviewMode(this.checked)">
+                        <span style="font-size:11px; color:var(--text-muted);" id="preview-toggle-text">未开启</span>
+                    </label>
+                </div>
+
+                <div style="display:flex; gap:6px;">
+                    <button class="btn btn-warning" onclick="runSmartGrouping()" style="flex:1; padding:9px; font-size:12px;">
+                        <i class="fa-solid fa-bolt"></i> 一键计算分组
+                    </button>
+                    <button class="btn btn-success" id="apply-preview-btn" onclick="applySmartGroupingPreview()" style="display:none; flex:1; padding:9px; font-size:12px;" title="将当前实时预览的最佳选址方案保存下来">
+                        <i class="fa-solid fa-check"></i> 确定保存方案
+                    </button>
+                </div>
             </div>
 
             <div class="section-card" style="flex:1;">
@@ -469,7 +493,7 @@
 <script src="js/algorithms.js"></script>
 <script src="js/map-manager.js"></script>
 <script src="js/exporter.js"></script>
-<script src="js/app.js?v=2.4"></script>
+<script src="js/app.js?v=2.5"></script>
 
 </body>
 </html>

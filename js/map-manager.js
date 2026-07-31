@@ -486,4 +486,63 @@ class MapManager {
             }
         }
     }
+
+    renderPreviewLayer(previewCenters) {
+        this.clearPreviewLayer();
+        this.previewLayers = [];
+
+        if (!previewCenters || previewCenters.length === 0) return;
+
+        const colors = APP_CONFIG.COLORS;
+
+        previewCenters.forEach((c, idx) => {
+            const color = colors[idx % colors.length];
+
+            // 1. 预览中心点 Marker
+            const marker = L.circleMarker([c.lat, c.lng], {
+                radius: 10,
+                fillColor: color,
+                color: '#ffffff',
+                weight: 3,
+                opacity: 1,
+                fillOpacity: 0.95
+            }).addTo(this.map);
+
+            marker.bindTooltip(`📍 预览中心 ${idx + 1}: ${c.name} (${c.people ? c.people.length : 0}人)`, { permanent: true, direction: 'top', className: 'marker-tooltip-active' });
+            this.previewLayers.push(marker);
+
+            // 2. 预览覆盖圆
+            if (c.radius) {
+                const circle = L.circle([c.lat, c.lng], {
+                    radius: c.radius * 1000,
+                    color: color,
+                    weight: 2,
+                    dashArray: '6, 6',
+                    fillColor: color,
+                    fillOpacity: 0.15
+                }).addTo(this.map);
+                this.previewLayers.push(circle);
+            }
+
+            // 3. 预览连线 (Spokes)
+            if (c.people && c.people.length > 0) {
+                c.people.forEach(p => {
+                    const line = L.polyline([[c.lat, c.lng], [p.lat, p.lng]], {
+                        color: color,
+                        weight: 1.5,
+                        opacity: 0.6,
+                        dashArray: '3, 4'
+                    }).addTo(this.map);
+                    this.previewLayers.push(line);
+                });
+            }
+        });
+    }
+
+    clearPreviewLayer() {
+        if (this.previewLayers && this.previewLayers.length > 0) {
+            this.previewLayers.forEach(l => this.map.removeLayer(l));
+            this.previewLayers = [];
+        }
+    }
 }
