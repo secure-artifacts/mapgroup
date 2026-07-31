@@ -639,211 +639,269 @@ document.getElementById('csv-file-input').addEventListener('change', function(e)
     const file = e.target.files[0];
     if (!file) return;
 
-    // Mandatory: must select a country first
-    const countryCode = (typeof getSelectedCountryCode === 'function') ? getSelectedCountryCode() : '';
-    if (!countryCode) {
-        alert('⚠️ 请先选择人员所在国家！\n\n在“选择人员所在国家”输入框中搜索并选择国家后再导入 CSV。');
-        // Reset file input so user can re-select
-        e.target.value = '';
-        return;
-    }
-
     Papa.parse(file, {
         header: false,
         skipEmptyLines: true,
         complete: async function(results) {
-            const rows = results.data;
-            const tempPeople = [];
-            const statusDiv = document.getElementById('csv-status');
-            const progressWrap = document.getElementById('csv-progress-wrap');
-            const progressFill = document.getElementById('csv-progress-fill');
-            
-            progressWrap.style.display = 'block';
-            statusDiv.innerText = "正在解析并同步地理位置...";
-
-            let skippedCount = 0;
-            failedGeoEntries = []; // Reset failed list
-
-            // Helper: detect if a row is a header or empty row
-            function isHeaderOrEmpty(row) {
-                const col0 = (row[0] || '').trim();
-                if (!col0) return true;
-                const lower = col0.toLowerCase();
-                if (lower.includes('name') || lower.includes('姓') || lower.includes('名字') ||
-                    lower.includes('新人') || lower.includes('地址') || lower.includes('address') ||
-                    lower.includes('town') || lower.includes('believer') || lower.includes('street') ||
-                    lower.includes('village')) {
-                    return true;
-                }
-                return false;
-            }
-
-            // Detect column format by checking first data row
-            // 2-col: name, address
-            // 3-col: group, name, address
-            // 4-col: name, lat, lng, address
-            let dataStartIdx = 0;
-            for (let i = 0; i < Math.min(rows.length, 5); i++) {
-                if (isHeaderOrEmpty(rows[i])) {
-                    dataStartIdx = i + 1;
-                } else {
-                    break;
-                }
-            }
-
-            // Detect format from column count of first data row
-            const sampleRow = rows[dataStartIdx] || [];
-            const colCount = sampleRow.filter(c => (c || '').trim()).length;
-            
-            // Determine format: 
-            // If 3 non-empty columns and column B is NOT a number → group,name,address
-            // If 4+ columns and column B,C are numbers → name,lat,lng,address
-            // Default 2-col: name,address
-            let format = '2col'; // name, address
-            if (colCount >= 4) {
-                const testLat = parseFloat((sampleRow[1] || '').trim());
-                const testLng = parseFloat((sampleRow[2] || '').trim());
-                if (!isNaN(testLat) && !isNaN(testLng) && Math.abs(testLat) <= 90) {
-                    format = '4col'; // name, lat, lng, address
-                } else {
-                    format = '3col'; // group, name, address (extra cols ignored)
-                }
-            } else if (colCount === 3) {
-                const testLat = parseFloat((sampleRow[1] || '').trim());
-                const testLng = parseFloat((sampleRow[2] || '').trim());
-                if (!isNaN(testLat) && !isNaN(testLng) && Math.abs(testLat) <= 90) {
-                    format = '4col'; // name, lat, lng (no address col)
-                } else {
-                    format = '3col'; // group, name, address
-                }
-            }
-
-            statusDiv.innerText = `检测到 ${format === '3col' ? '3列(组,姓名,地址)' : format === '4col' ? '4列(姓名,纬度,经度,地址)' : '2列(姓名,地址)'} 格式`;
-
-            // Separate rows into direct-coordinate and needs-geocoding
-            const directRows = [];
-            const geocodeRows = [];
-
-            for (let i = dataStartIdx; i < rows.length; i++) {
-                let group = '未分组';
-                let name, address, lat, lng;
-
-                if (format === '3col') {
-                    group = (rows[i][0] || '').trim() || '未分组';
-                    name = (rows[i][1] || '').trim();
-                    address = (rows[i][2] || '').trim();
-                } else if (format === '4col') {
-                    name = (rows[i][0] || '').trim();
-                    lat = parseFloat((rows[i][1] || '').trim());
-                    lng = parseFloat((rows[i][2] || '').trim());
-                    address = (rows[i][3] || '').trim() || 'GPS Location';
-                } else {
-                    name = (rows[i][0] || '').trim();
-                    address = (rows[i][1] || '').trim();
-                }
-
-                if (!name) { skippedCount++; continue; }
-
-                if (format === '4col' && !isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
-                    directRows.push({ name, lat, lng, address, group });
-                } else if (address) {
-                    geocodeRows.push({ name, address, group });
-                } else {
-                    skippedCount++;
-                }
-            }
-
-            // Duplicate detection
-            const existingNames = new Set(peopleData.map(p => p.name));
-            const allNewRows = [...directRows, ...geocodeRows];
-            const dupRows = allNewRows.filter(r => existingNames.has(r.name));
-
-            let skipDupNames = new Set();
-            if (dupRows.length > 0) {
-                const choice = prompt(
-                    `检测到 ${dupRows.length} 个已存在的人员：\n` +
-                    dupRows.slice(0, 5).map(r => `  · ${r.name}`).join('\n') +
-                    (dupRows.length > 5 ? `\n  ... 等` : '') +
-                    `\n\n1 = 跳过重名\n2 = 覆盖重名\n3 = 全部导入\n0 = 取消`,
-                    '1'
-                );
-                if (choice === '0' || choice === null) {
-                    progressWrap.style.display = 'none';
-                    statusDiv.innerText = '已取消导入。';
-                    return;
-                }
-                if (choice === '1') {
-                    skipDupNames = new Set(dupRows.map(r => r.name));
-                } else if (choice === '2') {
-                    const dupNameSet = new Set(dupRows.map(r => r.name));
-                    peopleData = peopleData.filter(p => !dupNameSet.has(p.name));
-                }
-                // choice '3': add all, no filtering
-            }
-
-            // Filter out skipped duplicates
-            const filteredDirect = directRows.filter(r => !skipDupNames.has(r.name));
-            const filteredGeocode = geocodeRows.filter(r => !skipDupNames.has(r.name));
-
-            // Instantly add all direct-coordinate entries
-            tempPeople.push(...filteredDirect);
-
-            // Sequential geocode with exponential backoff retry
-            const totalGeocode = filteredGeocode.length;
-            const MAX_RETRIES = 4;
-
-            for (let i = 0; i < totalGeocode; i++) {
-                const row = filteredGeocode[i];
-                statusDiv.innerText = `🌍 地址解析中: (${i + 1}/${totalGeocode}) ${row.name}...`;
-                progressFill.style.width = `${((i + 1) / totalGeocode) * 100}%`;
-
-                let coords = null;
-                let retryDelay = 500; // Shorter start since Photon is fast
-
-                for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-                    coords = await freeGeocode(row.address);
-                    if (coords) break;
-
-                    if (attempt < MAX_RETRIES) {
-                        statusDiv.innerText = `⏳ 重试 ${row.name}... (${attempt + 1}/${MAX_RETRIES}, 等待 ${retryDelay / 1000}s)`;
-                        await new Promise(resolve => setTimeout(resolve, retryDelay));
-                        retryDelay *= 2; // Exponential: 1→2→4→8
-                    }
-                }
-
-                if (coords) {
-                    tempPeople.push({ name: row.name, lat: coords.lat, lng: coords.lng, address: row.address, group: row.group || '未分组' });
-                } else {
-                    failedGeoEntries.push({ name: row.name, address: row.address, group: row.group || '未分组' });
-                }
-
-                // Photon has no strict rate limit, short delay to be polite
-                if (i < totalGeocode - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                }
-            }
-
-            peopleData = peopleData.concat(tempPeople);
-            rebuildGroupMeta();
-            saveData();
-            renderAllMapVisuals();
-            
-            let resultMsg = `🎉 成功解析并导入 ${tempPeople.length} 名人员数据！`;
-            if (failedGeoEntries.length > 0) {
-                resultMsg += ` (${failedGeoEntries.length} 条地址解析失败)`;
-            }
-            if (skippedCount > 0) {
-                resultMsg += ` (跳过 ${skippedCount} 条空行)`;
-            }
-            statusDiv.innerText = resultMsg;
-            
-            // Show failed list with retry buttons
-            renderFailedList();
-            
-            mapManager.fitBoundsToPeople(peopleData);
-            updateResultsByActiveTarget();
+            await processParsedRows(results.data);
+            e.target.value = '';
         }
     });
+});
+
+/**
+ * 核心导入引擎：解析并同步地理编码 (共享用于 CSV文件、剪贴板粘贴、文本框粘贴)
+ */
+async function processParsedRows(rows) {
+    if (!rows || rows.length === 0) return;
+
+    // Mandatory: must select a country first
+    const countryCode = (typeof getSelectedCountryCode === 'function') ? getSelectedCountryCode() : '';
+    if (!countryCode) {
+        alert('⚠️ 请先选择人员所在国家！\n\n在“选择人员所在国家”输入框中搜索并选择国家后再导入。');
+        return;
+    }
+
+    const tempPeople = [];
+    const statusDiv = document.getElementById('csv-status');
+    const progressWrap = document.getElementById('csv-progress-wrap');
+    const progressFill = document.getElementById('csv-progress-fill');
+    
+    progressWrap.style.display = 'block';
+    statusDiv.innerText = "正在解析并同步地理位置...";
+
+    let skippedCount = 0;
+    failedGeoEntries = []; // Reset failed list
+
+    // Helper: detect if a row is a header or empty row
+    function isHeaderOrEmpty(row) {
+        const col0 = (row[0] || '').trim();
+        if (!col0) return true;
+        const lower = col0.toLowerCase();
+        if (lower.includes('name') || lower.includes('姓') || lower.includes('名字') ||
+            lower.includes('新人') || lower.includes('地址') || lower.includes('address') ||
+            lower.includes('town') || lower.includes('believer') || lower.includes('street') ||
+            lower.includes('village') || lower.includes('组') || lower.includes('group')) {
+            return true;
+        }
+        return false;
+    }
+
+    // Detect column format by checking first data row
+    let dataStartIdx = 0;
+    for (let i = 0; i < Math.min(rows.length, 5); i++) {
+        if (isHeaderOrEmpty(rows[i])) {
+            dataStartIdx = i + 1;
+        } else {
+            break;
+        }
+    }
+
+    // Detect format from column count of first data row
+    const sampleRow = rows[dataStartIdx] || [];
+    const colCount = sampleRow.filter(c => (c || '').trim()).length;
+    
+    let format = '2col'; // name, address
+    if (colCount >= 4) {
+        const testLat = parseFloat((sampleRow[1] || '').trim());
+        const testLng = parseFloat((sampleRow[2] || '').trim());
+        if (!isNaN(testLat) && !isNaN(testLng) && Math.abs(testLat) <= 90) {
+            format = '4col'; // name, lat, lng, address
+        } else {
+            format = '3col'; // group, name, address
+        }
+    } else if (colCount === 3) {
+        const testLat = parseFloat((sampleRow[1] || '').trim());
+        const testLng = parseFloat((sampleRow[2] || '').trim());
+        if (!isNaN(testLat) && !isNaN(testLng) && Math.abs(testLat) <= 90) {
+            format = '4col'; // name, lat, lng
+        } else {
+            format = '3col'; // group, name, address
+        }
+    }
+
+    statusDiv.innerText = `检测到 ${format === '3col' ? '3列(组名,姓名,地址)' : format === '4col' ? '4列(姓名,纬度,经度,地址)' : '2列(姓名,地址)'} 格式`;
+
+    const directRows = [];
+    const geocodeRows = [];
+
+    for (let i = dataStartIdx; i < rows.length; i++) {
+        let group = '未分组';
+        let name, address, lat, lng;
+
+        if (format === '3col') {
+            group = (rows[i][0] || '').trim() || '未分组';
+            name = (rows[i][1] || '').trim();
+            address = (rows[i][2] || '').trim();
+        } else if (format === '4col') {
+            name = (rows[i][0] || '').trim();
+            lat = parseFloat((rows[i][1] || '').trim());
+            lng = parseFloat((rows[i][2] || '').trim());
+            address = (rows[i][3] || '').trim() || 'GPS Location';
+        } else {
+            name = (rows[i][0] || '').trim();
+            address = (rows[i][1] || '').trim();
+        }
+
+        if (!name) { skippedCount++; continue; }
+
+        if (format === '4col' && !isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+            directRows.push({ name, lat, lng, address, group });
+        } else if (address) {
+            geocodeRows.push({ name, address, group });
+        } else {
+            skippedCount++;
+        }
+    }
+
+    // Duplicate detection
+    const existingNames = new Set(peopleData.map(p => p.name));
+    const allNewRows = [...directRows, ...geocodeRows];
+    const dupRows = allNewRows.filter(r => existingNames.has(r.name));
+
+    let skipDupNames = new Set();
+    if (dupRows.length > 0) {
+        const choice = prompt(
+            `检测到 ${dupRows.length} 个已存在的人员：\n` +
+            dupRows.slice(0, 5).map(r => `  · ${r.name}`).join('\n') +
+            (dupRows.length > 5 ? `\n  ... 等` : '') +
+            `\n\n1 = 跳过重名\n2 = 覆盖重名\n3 = 全部导入\n0 = 取消`,
+            '1'
+        );
+        if (choice === '0' || choice === null) {
+            progressWrap.style.display = 'none';
+            statusDiv.innerText = '已取消导入。';
+            return;
+        }
+        if (choice === '1') {
+            skipDupNames = new Set(dupRows.map(r => r.name));
+        } else if (choice === '2') {
+            const dupNameSet = new Set(dupRows.map(r => r.name));
+            peopleData = peopleData.filter(p => !dupNameSet.has(p.name));
+        }
+    }
+
+    const filteredDirect = directRows.filter(r => !skipDupNames.has(r.name));
+    const filteredGeocode = geocodeRows.filter(r => !skipDupNames.has(r.name));
+
+    tempPeople.push(...filteredDirect);
+
+    const totalGeocode = filteredGeocode.length;
+    const MAX_RETRIES = 4;
+
+    for (let i = 0; i < totalGeocode; i++) {
+        const row = filteredGeocode[i];
+        statusDiv.innerText = `🌍 地址解析中: (${i + 1}/${totalGeocode}) ${row.name}...`;
+        progressFill.style.width = `${((i + 1) / totalGeocode) * 100}%`;
+
+        let coords = null;
+        let retryDelay = 500;
+
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            coords = await freeGeocode(row.address);
+            if (coords) break;
+
+            if (attempt < MAX_RETRIES) {
+                statusDiv.innerText = `⏳ 重试 ${row.name}... (${attempt + 1}/${MAX_RETRIES}, 等待 ${retryDelay / 1000}s)`;
+                await new Promise(resolve => setTimeout(resolve, retryDelay));
+                retryDelay *= 2;
+            }
+        }
+
+        if (coords) {
+            tempPeople.push({ name: row.name, lat: coords.lat, lng: coords.lng, address: row.address, group: row.group || '未分组' });
+        } else {
+            failedGeoEntries.push({ name: row.name, address: row.address, group: row.group || '未分组' });
+        }
+
+        if (i < totalGeocode - 1) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+        }
+    }
+
+    peopleData = peopleData.concat(tempPeople);
+    rebuildGroupMeta();
+    saveData();
+    renderAllMapVisuals();
+    
+    let resultMsg = `🎉 成功解析并导入 ${tempPeople.length} 名人员数据！`;
+    if (failedGeoEntries.length > 0) {
+        resultMsg += ` (${failedGeoEntries.length} 条地址解析失败)`;
+    }
+    if (skippedCount > 0) {
+        resultMsg += ` (跳过 ${skippedCount} 条空行)`;
+    }
+    statusDiv.innerText = resultMsg;
+    
+    renderFailedList();
+    mapManager.fitBoundsToPeople(peopleData);
+    updateResultsByActiveTarget();
+}
+
+/**
+ * 解析原始文本并导入（支持从 Google Sheets / Excel 复制的数据，列由 Tab/逗号 切分）
+ */
+function importFromRawText(text) {
+    if (!text || !text.trim()) return;
+
+    // 按行切分，每行优先尝试用 \t (Google Sheets 标准) 拆分，其次使用逗号
+    const lines = text.trim().split(/\r?\n/);
+    const rows = lines.map(line => {
+        if (line.includes('\t')) {
+            return line.split('\t');
+        }
+        return line.split(',');
+    }).filter(row => row.length > 0 && row.some(cell => (cell || '').trim()));
+
+    if (rows.length > 0) {
+        processParsedRows(rows);
+    } else {
+        alert('未在剪贴板或输入的文本中识别到有效的数据行。');
+    }
+}
+
+/**
+ * 直接从系统剪贴板一键读取文本并导入
+ */
+async function pasteFromClipboard() {
+    try {
+        if (!navigator.clipboard || !navigator.clipboard.readText) {
+            promptPasteTextModal();
+            return;
+        }
+        const text = await navigator.clipboard.readText();
+        if (!text || !text.trim()) {
+            alert('📋 当前剪贴板无文本！\n\n请先在 Google Sheets / Excel 中选中 3 列 (组名, 姓名, 地址) 并按 Ctrl+C 复制后，再点击此按钮。');
+            return;
+        }
+        importFromRawText(text);
+    } catch (err) {
+        console.warn('剪贴板读取受到保护或未获得用户授权，转为弹窗文本框模式:', err);
+        promptPasteTextModal();
+    }
+}
+
+/**
+ * 文本框手动粘贴弹窗模式
+ */
+function promptPasteTextModal() {
+    const text = prompt("请在此粘贴从 Google Sheets 复制的 3 列数据 (Ctrl+V)：\n例如: 组名 [TAB] 姓名 [TAB] 地址");
+    if (text) {
+        importFromRawText(text);
+    }
+}
+
+// 监听全局 Ctrl+V 粘贴事件：若未在普通输入框打字，直接粘贴表格文本亦可自动触发导入
+document.addEventListener('paste', (e) => {
+    const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+    if (activeTag === 'input' || activeTag === 'textarea') return;
+
+    const pastedText = (e.clipboardData || window.clipboardData)?.getData('text');
+    if (pastedText && (pastedText.includes('\t') || pastedText.includes('\n'))) {
+        e.preventDefault();
+        importFromRawText(pastedText);
+    }
+});
 });
 
 /**

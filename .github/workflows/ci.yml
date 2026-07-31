@@ -1,0 +1,23 @@
+name: Security & Code Check
+
+on:
+  push:
+    branches: [ main, gh-pages ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  audit-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Validate HTML and Structure
+        run: |
+          echo "Validating project structure..."
+          test -f index.html
+          test -f js/app.js
+          test -f js/geocoder.js
+          test -f css/map.css
+          echo "Project structure validation passed successfully."

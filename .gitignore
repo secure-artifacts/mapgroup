@@ -1,0 +1,9 @@
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Node / Temp
+node_modules/
+*.log
+.vscode/
+.idea/

@@ -127,16 +127,24 @@
                     </div>
                     <div id="geoapify-status" style="font-size:10px; margin-top:3px;"></div>
                 </div>
-                <div class="dropzone">
+                <div class="dropzone" id="csv-dropzone">
                     <input type="file" id="csv-file-input" accept=".csv">
                     <div class="dropzone-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
-                    <div style="font-size:12px; font-weight:600;">点击或拖拽 CSV 文件至此处导入</div>
+                    <div style="font-size:12px; font-weight:600;">点击 / 拖拽 CSV 文件，或在页面直接 Ctrl+V 粘贴</div>
                     <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">支持格式：组名,姓名,地址 | 姓名,地址 | 姓名,纬度,经度,地址</div>
                 </div>
-                <div class="progress-bar-container" id="csv-progress-wrap" style="display:none;">
+                <div style="display:flex; gap:6px; margin-top:6px;">
+                    <button class="btn btn-primary btn-sm" onclick="pasteFromClipboard()" style="flex:1;" title="直接读取剪贴板中从 Google Sheets 复制的 3 列内容">
+                        <i class="fa-solid fa-paste"></i> 粘贴 Google Sheets 数据 (3列)
+                    </button>
+                    <button class="btn btn-outline btn-sm" onclick="promptPasteTextModal()" title="文本框手动粘贴">
+                        <i class="fa-solid fa-file-lines"></i> 文本框粘贴
+                    </button>
+                </div>
+                <div class="progress-bar-container" id="csv-progress-wrap" style="display:none; margin-top:8px;">
                     <div class="progress-bar-fill" id="csv-progress-fill"></div>
                 </div>
-                <div id="csv-status" style="font-size:11px; color:var(--accent-emerald);"></div>
+                <div id="csv-status" style="font-size:11px; color:var(--accent-emerald); margin-top:4px;"></div>
                 <!-- Failed geocoding results with retry buttons -->
                 <div id="geocode-fail-panel" style="display:none; margin-top:8px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
