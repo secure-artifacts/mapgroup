@@ -31,8 +31,6 @@ function handleMapClick(e) {
     if (mapManager.isProbeMode) {
         setTempTarget(e.latlng, "探针锁定坐标点");
         toggleProbeMode(); 
-    } else {
-        setTempTarget(e.latlng, "地图点击位置");
     }
 }
 
@@ -1394,13 +1392,7 @@ function selectTarget(id) {
         
         renderTargetsList();
         renderAllMapVisuals();
-        
-        if (target.visible) {
-            drawCircle(L.latLng(target.lat, target.lng), target.radius, target.color);
-        } else {
-            mapManager.clearActiveCircle();
-            updateResults(L.latLng(target.lat, target.lng), target.radius);
-        }
+        updateResults(L.latLng(target.lat, target.lng), target.radius, target.color);
     }
     saveData();
 }
@@ -1416,9 +1408,7 @@ function updateActiveTargetRadius() {
             target.radius = radius;
             saveData();
             renderAllMapVisuals();
-            if (target.visible) {
-                drawCircle(L.latLng(target.lat, target.lng), radius, target.color);
-            }
+            updateResults(L.latLng(target.lat, target.lng), radius, target.color);
         }
     } else if (tempLatLng) {
         currentTempRadius = radius;

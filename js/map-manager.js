@@ -342,14 +342,15 @@ class MapManager {
         this.allTargetCircles = {};
 
         targetPoints.forEach(t => {
-            if (t.visible && t.id !== activeTargetId) { 
+            if (t.visible) { 
+                const isActive = t.id === activeTargetId;
                 const circle = L.circle([t.lat, t.lng], {
                     radius: t.radius * 1000,
                     color: t.color,
-                    weight: 2,
-                    dashArray: '5, 5',
+                    weight: isActive ? 3 : 2,
+                    dashArray: isActive ? null : '5, 5',
                     fillColor: t.color,
-                    fillOpacity: 0.12
+                    fillOpacity: isActive ? 0.18 : 0.12
                 }).addTo(this.map);
                 this.allTargetCircles[t.id] = circle;
             }
