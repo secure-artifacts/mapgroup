@@ -117,11 +117,12 @@
     border-top-color: rgba(15, 23, 42, 0.92) !important;
 }
 
-/* Custom Target Group Center Marker */
+/* Custom Target Group Center Marker - Highest Layer Priority */
 .target-center-marker {
     background: transparent;
     border: none;
     pointer-events: auto !important;
+    z-index: 99999 !important;
 }
 
 .target-center-wrapper {

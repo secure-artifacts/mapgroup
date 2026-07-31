@@ -255,6 +255,10 @@ class MapManager {
         const onPointerDown = (e) => {
             if (e.button !== 0) return; // 仅左键响应
             
+            // 用户要求：只有按住键盘 Alt 键 (或 Shift 键) 时才响应手势拖拽！不按 Alt 键绝对不响应，100% 零误触！
+            const isAltKey = window.isAltKeyPressed || window.isShiftKeyPressed || e.altKey || e.shiftKey;
+            if (!isAltKey) return;
+
             // 阻止 Leaflet 地图捕获 mouse/pointer 事件进行大地图平移！
             e.preventDefault();
             e.stopPropagation();
@@ -392,7 +396,8 @@ class MapManager {
             });
 
             const marker = L.marker([t.lat, t.lng], { 
-                icon: centerIcon
+                icon: centerIcon,
+                zIndexOffset: 20000
             }).addTo(this.map);
 
             // 挂载独立原生 Pointer/Mouse 手势拖拽接管控制器
@@ -405,27 +410,31 @@ class MapManager {
     }
 
     drawCircle(latlng, radiusKm, color = '#3b82f6') {
+        // 废除独立的 activeCircle 重叠绘制，统一使用 clearActiveCircle 安全清理
+        this.clearActiveCircle();
         const radiusMeters = radiusKm * 1000;
-        if (this.activeCircle) {
-            this.activeCircle.setLatLng(latlng);
-            this.activeCircle.setRadius(radiusMeters);
-            this.activeCircle.setStyle({ color: color, fillColor: color });
-        } else {
-            this.activeCircle = L.circle(latlng, {
-                color: color,
-                weight: 3,
-                fillColor: color,
-                fillOpacity: 0.15,
-                radius: radiusMeters
-            }).addTo(this.map);
-        }
+        this.activeCircle = L.circle(latlng, {
+            color: color,
+            weight: 3,
+            fillColor: color,
+            fillOpacity: 0.15,
+            radius: radiusMeters,
+            interactive: false
+        }).addTo(this.map);
     }
 
     renderAllTargetCircles(targetPoints, activeTargetId) {
+        // 必须优先完全销毁已存在的 activeCircle，彻底杜绝双层同重叠大圈！
+        this.clearActiveCircle();
+
         for (let key in this.allTargetCircles) {
-            this.map.removeLayer(this.allTargetCircles[key]);
+            if (this.allTargetCircles[key]) {
+                this.map.removeLayer(this.allTargetCircles[key]);
+            }
         }
         this.allTargetCircles = {};
+
+        if (!targetPoints || targetPoints.length === 0) return;
 
         targetPoints.forEach(t => {
             if (t.visible) { 

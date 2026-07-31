@@ -16,6 +16,28 @@ let activeGroupFilter = null; // null = show all, string = filter by group name
 // Global Modifier Keys State for Alt-drag and Alt-wheel interaction
 window.isAltKeyPressed = false;
 window.isShiftKeyPressed = false;
+window.isTargetDragLocked = false; // 默认开放灵活微调，可随时一键加锁
+
+function toggleTargetDragLock(forceState) {
+    if (forceState !== undefined) {
+        window.isTargetDragLocked = forceState;
+    } else {
+        window.isTargetDragLocked = !window.isTargetDragLocked;
+    }
+    const btn = document.getElementById('drag-lock-btn');
+    if (btn) {
+        if (window.isTargetDragLocked) {
+            btn.innerHTML = '<i class="fa-solid fa-lock"></i> 位置已锁定';
+            btn.style.color = 'var(--accent-amber)';
+            btn.style.borderColor = 'rgba(245,158,11,0.4)';
+        } else {
+            btn.innerHTML = '<i class="fa-solid fa-lock-open"></i> 拖拽微调中';
+            btn.style.color = 'var(--accent-emerald)';
+            btn.style.borderColor = 'rgba(16,185,129,0.5)';
+        }
+    }
+}
+window.toggleTargetDragLock = toggleTargetDragLock;
 
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Alt' || e.altKey) window.isAltKeyPressed = true;
