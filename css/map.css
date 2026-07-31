@@ -121,6 +121,7 @@
 .target-center-marker {
     background: transparent;
     border: none;
+    pointer-events: auto !important;
 }
 
 .target-center-wrapper {
@@ -128,8 +129,9 @@
     align-items: center;
     gap: 8px;
     transform: translate(-50%, -50%);
-    cursor: pointer;
+    cursor: move !important;
     white-space: nowrap;
+    pointer-events: auto !important;
 }
 
 .target-center-pin {

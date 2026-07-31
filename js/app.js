@@ -9,9 +9,19 @@ let tempLatLng = null;
 let tempAddressName = "";
 let currentTempRadius = 50.0; // Current exclusive radius for temporary search/probe location (Default 50km)
 
-// Group metadata: { groupName: { color, visible } }
-let groupMeta = {};
-let activeGroupFilter = null; // null = show all, string = filter by group name
+// Global Modifier Keys State for Alt-drag and Alt-wheel interaction
+window.isAltKeyPressed = false;
+window.isShiftKeyPressed = false;
+
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Alt' || e.altKey) window.isAltKeyPressed = true;
+    if (e.key === 'Shift' || e.shiftKey) window.isShiftKeyPressed = true;
+}, true);
+
+window.addEventListener('keyup', (e) => {
+    if (e.key === 'Alt' || !e.altKey) window.isAltKeyPressed = false;
+    if (e.key === 'Shift' || !e.shiftKey) window.isShiftKeyPressed = false;
+}, true);
 
 window.onload = function() {
     mapManager = new MapManager('map-container');
