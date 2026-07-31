@@ -28,7 +28,7 @@
 ## 🚀 快速使用
 
 您可以直接访问在线网页：
-👉 **[https://nuosishizi.github.io/mapgroup/](https://nuosishizi.github.io/mapgroup/)**
+👉 **[https://secure-artifacts.github.io/mapgroup/](https://secure-artifacts.github.io/mapgroup/)**
 
 或下载源码后在本地直接双击 `index.html` 运行（无需任何环境配置）。
 
