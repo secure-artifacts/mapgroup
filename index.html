@@ -134,10 +134,10 @@
                     <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">支持格式：组名,姓名,地址 | 姓名,地址 | 姓名,纬度,经度,地址</div>
                 </div>
                 <div style="display:flex; gap:6px; margin-top:6px;">
-                    <button class="btn btn-primary btn-sm" onclick="pasteFromClipboard()" style="flex:1;" title="直接读取剪贴板中从 Google Sheets 复制的 3 列内容">
+                    <button class="btn btn-primary btn-sm" onclick="openPasteModal('batch')" style="flex:1;" title="直接读取或粘贴从 Google Sheets 复制的 3 列内容">
                         <i class="fa-solid fa-paste"></i> 粘贴 Google Sheets 数据 (3列)
                     </button>
-                    <button class="btn btn-outline btn-sm" onclick="promptPasteTextModal()" title="文本框手动粘贴">
+                    <button class="btn btn-outline btn-sm" onclick="openPasteModal('batch')" title="文本框手动粘贴">
                         <i class="fa-solid fa-file-lines"></i> 文本框粘贴
                     </button>
                 </div>
@@ -169,7 +169,7 @@
                     </div>
                     <div class="input-group">
                         <input type="text" id="add-address" class="form-control" placeholder="详细地址 或 Lat, Lng 坐标">
-                        <button class="btn btn-outline" onclick="pasteSinglePersonFromClipboard()" title="从剪贴板读取数据自动分栏填入">
+                        <button class="btn btn-outline" onclick="openPasteModal('single')" title="从剪贴板读取数据自动分栏填入">
                             <i class="fa-solid fa-paste"></i> 粘贴
                         </button>
                         <button class="btn btn-primary" onclick="addSinglePerson()">
@@ -408,6 +408,27 @@
                 <span class="legend-symbol" style="border: 1px dashed #f43f5e; background:rgba(244,63,94,0.1);"></span>
                 <span>全组凸包领域 (Territory Hull)</span>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- 粘贴表格数据专用的 Modal 弹窗 -->
+<div id="paste-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.65); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:var(--bg-card, #1e293b); border:1px solid var(--border-color, #334155); border-radius:12px; padding:20px; width:90%; max-width:550px; box-shadow:0 10px 30px rgba(0,0,0,0.5); color:var(--text-main, #f8fafc);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <h4 style="margin:0; font-size:16px; font-weight:700;"><i class="fa-solid fa-paste" style="color:var(--accent-blue);"></i> 粘贴数据导入面板</h4>
+            <button onclick="closePasteModal()" style="background:none; border:none; color:var(--text-muted); font-size:20px; cursor:pointer;">&times;</button>
+        </div>
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">
+            直接在下方框内按 <strong>Ctrl+V</strong> 粘贴从 Google Sheets / Excel 复制的数据（支持 3列: 组名, 姓名, 地址）：
+        </div>
+        <textarea id="paste-textarea" rows="7" placeholder="在此处 Ctrl+V 粘贴从 Google Sheets 或 Excel 复制的数据...&#10;例如：&#10;第1组	张三	北京天安门&#10;第2组	李四	上海东方明珠" style="width:100%; box-sizing:border-box; font-family:monospace; font-size:12px; background:var(--bg-main, #0f172a); color:#fff; border:1px solid #475569; border-radius:6px; padding:10px;" oninput="previewPasteText()"></textarea>
+        <div id="paste-preview-status" style="font-size:12px; margin-top:8px; font-weight:600; color:var(--accent-emerald, #10b981);"></div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+            <button class="btn btn-outline btn-sm" onclick="closePasteModal()">取消</button>
+            <button class="btn btn-primary btn-sm" onclick="submitPasteModal()">
+                <i class="fa-solid fa-check"></i> 立即解析并同步导入
+            </button>
         </div>
     </div>
 </div>

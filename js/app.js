@@ -839,12 +839,89 @@ async function processParsedRows(rows) {
 }
 
 /**
+ * 打开粘贴导入弹窗面板 (100% 交互响应)
+ */
+async function openPasteModal(mode = 'batch') {
+    window.currentPasteMode = mode;
+    const modal = document.getElementById('paste-modal');
+    const textarea = document.getElementById('paste-textarea');
+    const status = document.getElementById('paste-preview-status');
+    
+    if (!modal || !textarea) return;
+
+    modal.style.display = 'flex';
+    status.innerText = '';
+    
+    setTimeout(() => textarea.focus(), 100);
+
+    // 尝试直接自动从系统剪贴板读取
+    try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+            const text = await navigator.clipboard.readText();
+            if (text && text.trim()) {
+                textarea.value = text;
+                previewPasteText();
+            }
+        }
+    } catch (e) {
+        console.log('剪贴板未获直接读取授权，等待用户 Ctrl+V 粘贴:', e);
+    }
+}
+
+function closePasteModal() {
+    const modal = document.getElementById('paste-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function previewPasteText() {
+    const text = document.getElementById('paste-textarea').value;
+    const status = document.getElementById('paste-preview-status');
+    if (!text || !text.trim()) {
+        status.innerText = '';
+        return;
+    }
+    const lines = text.trim().split(/\r?\n/).filter(Boolean);
+    status.innerText = `🔍 已识别出 ${lines.length} 行表格数据，点击“立即解析”即可开始打点！`;
+}
+
+function submitPasteModal() {
+    const text = document.getElementById('paste-textarea').value;
+    if (!text || !text.trim()) {
+        alert('请先在框内按 Ctrl+V 粘贴表格内容！');
+        return;
+    }
+
+    closePasteModal();
+
+    if (window.currentPasteMode === 'single') {
+        const lines = text.trim().split(/\r?\n/).filter(Boolean);
+        if (lines.length === 1) {
+            const row = (lines[0].includes('\t') ? lines[0].split('\t') : lines[0].split(',')).map(c => c.trim()).filter(Boolean);
+            if (row.length >= 3) {
+                if (document.getElementById('add-group')) document.getElementById('add-group').value = row[0];
+                if (document.getElementById('add-name')) document.getElementById('add-name').value = row[1];
+                if (document.getElementById('add-address')) document.getElementById('add-address').value = row[2];
+            } else if (row.length === 2) {
+                if (document.getElementById('add-name')) document.getElementById('add-name').value = row[0];
+                if (document.getElementById('add-address')) document.getElementById('add-address').value = row[1];
+            } else {
+                if (document.getElementById('add-name')) document.getElementById('add-name').value = lines[0];
+            }
+            const addStatus = document.getElementById('add-status');
+            if (addStatus) addStatus.innerText = `📋 已成功自动拆分填入输入框，点击“添加”按钮完成发布定位！`;
+            return;
+        }
+    }
+
+    importFromRawText(text);
+}
+
+/**
  * 解析原始文本并导入（支持从 Google Sheets / Excel 复制的数据，列由 Tab/逗号 切分）
  */
 function importFromRawText(text) {
     if (!text || !text.trim()) return;
 
-    // 按行切分，每行优先尝试用 \t (Google Sheets 标准) 拆分，其次使用逗号
     const lines = text.trim().split(/\r?\n/);
     const rows = lines.map(line => {
         if (line.includes('\t')) {
@@ -857,37 +934,6 @@ function importFromRawText(text) {
         processParsedRows(rows);
     } else {
         alert('未在剪贴板或输入的文本中识别到有效的数据行。');
-    }
-}
-
-/**
- * 直接从系统剪贴板一键读取文本并导入
- */
-async function pasteFromClipboard() {
-    try {
-        if (!navigator.clipboard || !navigator.clipboard.readText) {
-            promptPasteTextModal();
-            return;
-        }
-        const text = await navigator.clipboard.readText();
-        if (!text || !text.trim()) {
-            alert('📋 当前剪贴板无文本！\n\n请先在 Google Sheets / Excel 中选中 3 列 (组名, 姓名, 地址) 并按 Ctrl+C 复制后，再点击此按钮。');
-            return;
-        }
-        importFromRawText(text);
-    } catch (err) {
-        console.warn('剪贴板读取受到保护或未获得用户授权，转为弹窗文本框模式:', err);
-        promptPasteTextModal();
-    }
-}
-
-/**
- * 文本框手动粘贴弹窗模式
- */
-function promptPasteTextModal() {
-    const text = prompt("请在此粘贴从 Google Sheets 复制的 3 列数据 (Ctrl+V)：\n例如: 组名 [TAB] 姓名 [TAB] 地址");
-    if (text) {
-        importFromRawText(text);
     }
 }
 
