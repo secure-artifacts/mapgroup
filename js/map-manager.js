@@ -631,27 +631,30 @@ class MapManager {
         return lower.concat(upper);
     }
 
+    /**
+     * 获取单条驾车路线: 优先 Google Apps Script (免费), 备选 OSRM
+     */
     async fetchSingleRoute(centerLat, centerLng, personLat, personLng) {
         this.activeRouteLines.forEach(l => this.map.removeLayer(l));
         this.activeRouteLines = [];
 
-        const url = `https://router.project-osrm.org/route/v1/driving/${centerLng},${centerLat};${personLng},${personLat}?geometries=geojson`;
-        try {
-            const response = await fetch(url);
-            const data = await response.json();
-            if (data.routes && data.routes.length > 0) {
-                const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-                const rLine = L.polyline(coords, {
-                    color: '#f43f5e',
-                    weight: 4,
-                    opacity: 0.95
-                }).addTo(this.map);
-                this.activeRouteLines.push(rLine);
-                this.map.fitBounds(rLine.getBounds(), { padding: [60, 60] });
-            }
-        } catch (err) { alert("路线计算请求失败，请重试。"); }
+        const coords = await this._getRouteCoords(centerLat, centerLng, personLat, personLng);
+        if (coords && coords.length > 0) {
+            const rLine = L.polyline(coords, {
+                color: '#f43f5e',
+                weight: 4,
+                opacity: 0.95
+            }).addTo(this.map);
+            this.activeRouteLines.push(rLine);
+            this.map.fitBounds(rLine.getBounds(), { padding: [60, 60] });
+        } else {
+            alert("路线计算请求失败，请重试。");
+        }
     }
 
+    /**
+     * 批量获取驾车路线
+     */
     async fetchBatchRoutes(centerLatLng, results) {
         this.activeRouteLines.forEach(l => this.map.removeLayer(l));
         this.activeRouteLines = [];
@@ -663,28 +666,56 @@ class MapManager {
 
         for (let i = 0; i < count; i++) {
             const r = results[i];
-            const url = `https://router.project-osrm.org/route/v1/driving/${centerLatLng.lng},${centerLatLng.lat};${r.lng},${r.lat}?geometries=geojson`;
-            
-            try {
-                const response = await fetch(url);
-                const data = await response.json();
-                if (data.routes && data.routes.length > 0) {
-                    const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-                    const rLine = L.polyline(coords, {
-                        color: '#f43f5e',
-                        weight: 3,
-                        opacity: 0.85
-                    }).addTo(this.map);
-                    this.activeRouteLines.push(rLine);
-                }
-                await new Promise(res => setTimeout(res, 100));
-            } catch(e) { console.error(e); }
+            const coords = await this._getRouteCoords(centerLatLng.lat, centerLatLng.lng, r.lat, r.lng);
+            if (coords && coords.length > 0) {
+                const rLine = L.polyline(coords, {
+                    color: '#f43f5e',
+                    weight: 3,
+                    opacity: 0.85
+                }).addTo(this.map);
+                this.activeRouteLines.push(rLine);
+            }
+            await new Promise(res => setTimeout(res, 150));
         }
 
         if(this.activeRouteLines.length > 0) {
             const group = new L.featureGroup(this.activeRouteLines);
             this.map.fitBounds(group.getBounds(), { padding: [50, 50] });
         }
+    }
+
+    /**
+     * 路线坐标获取 — 优先 Google Apps Script (免费), 备选 OSRM
+     */
+    async _getRouteCoords(oLat, oLng, dLat, dLng) {
+        // 模式 1: Google Apps Script (免费 Maps.newDirectionFinder)
+        const scriptUrl = typeof getGoogleScriptUrl === 'function' ? getGoogleScriptUrl() : '';
+        if (scriptUrl) {
+            try {
+                const url = `${scriptUrl}?action=directions&olat=${oLat}&olng=${oLng}&dlat=${dLat}&dlng=${dLng}`;
+                const resp = await fetch(url);
+                const data = await resp.json();
+                if (data.success && data.coordinates) {
+                    console.log(`[Route] ✅ Google 驾车路线: ${data.distanceText}, ${data.durationText}`);
+                    return data.coordinates; // [[lat,lng], ...]
+                }
+            } catch (e) {
+                console.warn('[Route] Google Apps Script error, falling back to OSRM:', e.message);
+            }
+        }
+
+        // 模式 2: OSRM 备选 (免费)
+        try {
+            const url = `https://router.project-osrm.org/route/v1/driving/${oLng},${oLat};${dLng},${dLat}?geometries=geojson`;
+            const resp = await fetch(url);
+            const data = await resp.json();
+            if (data.routes && data.routes.length > 0) {
+                return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+            }
+        } catch (e) {
+            console.warn('[Route] OSRM error:', e.message);
+        }
+        return null;
     }
 
     fitBoundsToPeople(peopleData) {

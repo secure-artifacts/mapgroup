@@ -1,5 +1,6 @@
 /**
  * Free Geocoding Service — Multi-provider with fallback
+ * Provider 0: Google Apps Script (最高优先级, Google 数据, 完全免费)
  * Provider 1: Geoapify (best accuracy, 3000/day per API key)
  * Provider 2: Photon (Komoot) — fast, no API key, no strict rate limit
  * Provider 3: Nominatim (OSM) — backup, 1 req/sec limit
@@ -30,6 +31,13 @@ async function freeGeocode(address) {
         }
     }
 
+    // Provider 0: Google Apps Script (最高优先级 — Google 数据 + 完全免费)
+    const scriptUrl = getGoogleScriptUrl();
+    if (scriptUrl) {
+        const result = await _googleScriptGeocode(scriptUrl, query, countryCode);
+        if (result) return result;
+    }
+
     // Provider 1: Geoapify (if API key configured)
     const apiKey = getGeoapifyKey();
     if (apiKey) {
@@ -44,6 +52,35 @@ async function freeGeocode(address) {
     // Provider 3: Nominatim (backup)
     result = await _nominatimSearch(query, countryCode);
     return result;
+}
+
+/**
+ * Google Apps Script 地理编码 (完全免费, 使用 Google 内置 Maps.newGeocoder)
+ */
+async function _googleScriptGeocode(scriptUrl, query, countryCode) {
+    try {
+        const params = new URLSearchParams({
+            action: 'geocode',
+            address: query
+        });
+        if (countryCode) params.append('region', countryCode.toLowerCase());
+
+        const resp = await fetch(`${scriptUrl}?${params.toString()}`);
+        if (!resp.ok) return null;
+
+        const data = await resp.json();
+        if (data.success) {
+            console.log('[Geocode] ✅ Google Apps Script 成功:', data.displayName);
+            return {
+                lat: data.lat,
+                lng: data.lng,
+                displayName: data.displayName || query
+            };
+        }
+    } catch (e) {
+        console.warn('[Geocode] Google Apps Script error:', e.message);
+    }
+    return null;
 }
 
 // ======================== Geoapify ========================
