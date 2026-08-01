@@ -196,15 +196,40 @@
             <!-- 子页面 1: 目标选址 -->
             <div id="target-sub-site" class="target-sub-page">
                 <div class="section-card">
-                    <div class="section-title"><i class="fa-solid fa-map-pin"></i> 目标中心选址</div>
-                    <div style="display:flex; gap:6px; margin-bottom:8px;">
-                        <input type="text" id="target-address-input" class="form-control" placeholder="输入地址搜索目标位置" style="flex:1; font-size:11px;" onkeydown="if(event.key==='Enter') searchTargetAddress()">
-                        <button class="btn btn-primary btn-sm" onclick="searchTargetAddress()">
-                            <i class="fa-solid fa-search"></i> 搜索
+                    <div class="section-header" style="margin-bottom:8px;">
+                        <span class="section-title"><i class="fa-solid fa-map-pin"></i> 目标中心选址</span>
+                        <div style="display:flex; gap:3px; background:rgba(0,0,0,0.3); padding:2px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+                            <button class="btn btn-sm" id="search-mode-single-btn" onclick="switchSearchMode('single')" style="font-size:10px; padding:2px 8px; background:var(--accent-blue); color:#fff; border-radius:4px; transition:all 0.2s;">
+                                单地址搜索
+                            </button>
+                            <button class="btn btn-sm" id="search-mode-batch-btn" onclick="switchSearchMode('batch')" style="font-size:10px; padding:2px 8px; background:transparent; color:var(--text-muted); border-radius:4px; transition:all 0.2s;">
+                                批量输入多地址
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 1. 单地址搜索面板 -->
+                    <div id="single-search-panel">
+                        <div style="display:flex; gap:6px; margin-bottom:6px;">
+                            <input type="text" id="target-address-input" class="form-control" placeholder="输入地址搜索目标位置" style="flex:1; font-size:11px;" onkeydown="if(event.key==='Enter') searchTargetAddress()">
+                            <button class="btn btn-primary btn-sm" onclick="searchTargetAddress()">
+                                <i class="fa-solid fa-search"></i> 搜索
+                            </button>
+                        </div>
+                        <p style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">💡 或直接在地图上点击您感兴趣的位置来设定目标中心坐标</p>
+                    </div>
+
+                    <!-- 2. 批量多地址搜索面板 -->
+                    <div id="batch-search-panel" style="display:none;">
+                        <textarea id="batch-address-input" class="form-control" rows="4" placeholder="粘贴或输入多个目标选址地址（每行一个）&#10;例如：&#10;San Jose City College&#10;Santa Clara University&#10;Stanford University" style="width:100%; font-size:11px; margin-bottom:6px; line-height:1.4; resize:vertical;"></textarea>
+                        <button class="btn btn-primary btn-sm" onclick="batchSearchTargetAddresses()" style="width:100%; font-size:11px; padding:6px;">
+                            <i class="fa-solid fa-layer-group"></i> 批量解析并一键生成选址中心
                         </button>
                     </div>
-                    <p style="font-size:11px; color:var(--text-muted);">💡 或直接在地图上点击您感兴趣的位置来设定目标中心坐标</p>
-                    <div class="form-group">
+
+                    <div id="search-status" style="font-size:11px; color:var(--accent-emerald); margin-top:4px;"></div>
+
+                    <div class="form-group" style="margin-top:8px;">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                             <span style="font-size:12px; font-weight:600;">设定临时勘探半径 (公里):</span>
                             <span id="temp-radius-val-label" style="font-size:12px; font-weight:700; color:var(--accent-emerald);">50.0 km</span>
