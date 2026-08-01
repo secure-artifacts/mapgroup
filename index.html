@@ -467,20 +467,36 @@
 
             <div class="section-card">
                 <div class="section-title"><i class="fa-solid fa-code"></i> Google Apps Script（推荐·一站式·免费）</div>
+                <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px; line-height:1.5;">
+                    💡 部署免费 Google 脚本，即可获得全局免费地址解析、驾车路线与场所搜索。
+                </div>
+                <div style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
+                    <button class="btn btn-primary btn-sm" onclick="copyGoogleAppsScriptCode()" style="flex:1; white-space:nowrap;">
+                        <i class="fa-solid fa-copy"></i> 一键复制 Google 脚本代码
+                    </button>
+                    <button class="btn btn-outline btn-sm" onclick="showGoogleScriptModal()">
+                        <i class="fa-solid fa-code"></i> 查看代码
+                    </button>
+                    <a href="https://script.google.com" target="_blank" class="btn btn-outline btn-sm" style="color:var(--accent-emerald);">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i> 打开 Google Script
+                    </a>
+                </div>
                 <div class="form-group" style="margin-bottom:10px;">
                     <label style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
                         <i class="fa-solid fa-link" style="color:var(--accent-emerald);"></i>
                         <span>Script 部署 URL</span>
                     </label>
-                    <div style="display:flex; gap:6px;">
-                        <input type="text" id="google-script-url" class="form-control" 
+                    <div style="display:flex; gap:4px;">
+                        <input type="password" id="google-script-url" class="form-control" 
                                placeholder="粘贴 Apps Script 部署的 Web App URL" 
                                style="font-size:11px; flex:1;"
                                oninput="saveGoogleScriptUrl()">
+                        <button type="button" class="btn btn-outline btn-sm" onclick="toggleKeyVisibility('google-script-url', this)" title="显示/隐藏密钥">
+                            <i class="fa-solid fa-eye-slash"></i>
+                        </button>
                     </div>
                     <div style="font-size:10px; color:var(--text-muted); margin-top:3px;">
-                        地址解析 + 场所搜索 + 驾车路线，全部通过此 URL · 
-                        <a href="https://script.google.com" style="color:var(--accent-emerald);" target="_blank">创建脚本</a>
+                        地址解析 + 场所搜索 + 驾车路线，全部通过此 URL
                     </div>
                 </div>
             </div>
@@ -492,11 +508,14 @@
                         <i class="fa-solid fa-key" style="color:var(--accent-amber);"></i>
                         <span>Geoapify API Key（地址解析备用）</span>
                     </label>
-                    <div style="display:flex; gap:6px;">
-                        <input type="text" id="geoapify-api-key" class="form-control" 
+                    <div style="display:flex; gap:4px;">
+                        <input type="password" id="geoapify-api-key" class="form-control" 
                                placeholder="粘贴你的 Geoapify API Key" 
                                style="font-size:11px; flex:1;"
                                oninput="saveGeoapifyKey()">
+                        <button type="button" class="btn btn-outline btn-sm" onclick="toggleKeyVisibility('geoapify-api-key', this)" title="显示/隐藏密钥">
+                            <i class="fa-solid fa-eye-slash"></i>
+                        </button>
                         <button class="btn btn-outline btn-sm" onclick="testGeoapifyKey()" title="测试连接">
                             <i class="fa-solid fa-plug"></i>
                         </button>
@@ -512,15 +531,18 @@
                         <i class="fa-solid fa-key" style="color:var(--accent-blue);"></i>
                         <span>Google Maps API Key（场所搜索直连备用）</span>
                     </label>
-                    <div style="display:flex; gap:6px;">
-                        <input type="text" id="google-maps-api-key" class="form-control" 
+                    <div style="display:flex; gap:4px;">
+                        <input type="password" id="google-maps-api-key" class="form-control" 
                                placeholder="粘贴你的 Google Maps API Key" 
                                style="font-size:11px; flex:1;"
                                oninput="saveGoogleMapsKey()">
+                        <button type="button" class="btn btn-outline btn-sm" onclick="toggleKeyVisibility('google-maps-api-key', this)" title="显示/隐藏密钥">
+                            <i class="fa-solid fa-eye-slash"></i>
+                        </button>
                     </div>
                     <div style="font-size:10px; color:var(--text-muted); margin-top:3px;">
                         如未配置 Script URL 则直连 Google API · 
-                        <a href="https://console.cloud.google.com/apis/credentials" style="color:var(--accent-blue);" target="_blank">Google Cloud Console</a>
+                        <a href="https://mapsplatform.google.com/intl/maps-demo-key/" style="color:var(--accent-blue); font-weight:bold;" target="_blank">👉 点击直接获取免费 Demo Key</a>
                     </div>
                 </div>
             </div>
@@ -596,6 +618,26 @@
             <button class="btn btn-outline btn-sm" onclick="closePasteModal()">取消</button>
             <button class="btn btn-primary btn-sm" onclick="submitPasteModal()">
                 <i class="fa-solid fa-check"></i> 立即解析并同步导入
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Google Apps Script 代码查看 Modal 弹窗 -->
+<div id="google-script-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:var(--bg-card, #1e293b); border:1px solid var(--border-color, #334155); border-radius:12px; padding:20px; width:92%; max-width:680px; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 10px 30px rgba(0,0,0,0.5); color:var(--text-main, #f8fafc);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <h4 style="margin:0; font-size:16px; font-weight:700;"><i class="fa-solid fa-code" style="color:var(--accent-emerald);"></i> Google Apps Script Code.gs 完整部署源码</h4>
+            <button onclick="closeGoogleScriptModal()" style="background:none; border:none; color:var(--text-muted); font-size:20px; cursor:pointer;">&times;</button>
+        </div>
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">
+            💡 点击下方按钮一键复制全部代码，粘贴到 <a href="https://script.google.com" target="_blank" style="color:var(--accent-emerald);">script.google.com</a> 项目的 Code.gs 中即可免费使用！
+        </div>
+        <textarea id="google-script-code-text" readonly rows="13" style="width:100%; box-sizing:border-box; font-family:monospace; font-size:11px; background:var(--bg-main, #0f172a); color:#e2e8f0; border:1px solid #475569; border-radius:6px; padding:10px; resize:vertical; flex:1; margin-bottom:10px;"></textarea>
+        <div style="display:flex; justify-content:flex-end; gap:8px;">
+            <button class="btn btn-outline btn-sm" onclick="closeGoogleScriptModal()">关闭</button>
+            <button class="btn btn-primary btn-sm" onclick="copyGoogleAppsScriptCode()">
+                <i class="fa-solid fa-copy"></i> 一键复制全部代码
             </button>
         </div>
     </div>
