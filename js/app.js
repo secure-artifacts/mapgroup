@@ -145,6 +145,7 @@ function switchTab(tabId) {
     if(tabId === 'target-tab') activeIdx = 1;
     if(tabId === 'ai-tab') activeIdx = 2;
     if(tabId === 'analysis-tab') activeIdx = 3;
+    if(tabId === 'config-tab') activeIdx = 4;
     document.querySelectorAll('.tab-btn')[activeIdx].classList.add('active');
     document.getElementById(tabId).classList.add('active');
     
