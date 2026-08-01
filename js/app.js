@@ -1095,6 +1095,26 @@ window.applySmartGroupingPreview = applySmartGroupingPreview;
 window.searchNearbyVenues = searchNearbyVenues;
 window.clearNearbyVenues = clearNearbyVenues;
 window.switchTargetSubTab = switchTargetSubTab;
+window.addCustomVenueType = addCustomVenueType;
+
+// ======================== 自定义场所类型 ========================
+
+function addCustomVenueType() {
+    const input = document.getElementById('venue-custom-type');
+    const val = (input?.value || '').trim().toLowerCase();
+    if (!val) { showToast('请输入场所类型英文关键词'); return; }
+    // 检查是否已存在
+    const existing = [...document.querySelectorAll('.venue-type-cb')].map(cb => cb.value);
+    if (existing.includes(val)) { showToast('该类型已存在'); return; }
+    // 创建新的标签
+    const container = document.getElementById('custom-venue-types');
+    const label = document.createElement('label');
+    label.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;padding:4px 8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:6px;';
+    label.innerHTML = `<input type="checkbox" class="venue-type-cb" value="${val}" checked> 🏷️ ${val}
+        <span onclick="this.parentElement.remove()" style="cursor:pointer;color:var(--accent-rose);margin-left:2px;font-size:10px;">✕</span>`;
+    container.appendChild(label);
+    input.value = '';
+}
 
 // ======================== 目标规划子页面切换 ========================
 
@@ -1159,8 +1179,13 @@ async function searchNearbyVenues() {
     // 搜索半径：取分组覆盖半径 (km) 转为米，最小5km最大50km
     const searchRadiusM = Math.min(50000, Math.max(5000, target.radius * 1000));
 
-    // Google Places 搜索类型：图书馆 + 社区活动中心
-    const placeTypes = ['library', 'community_center'];
+    // Google Places 搜索类型：从勾选的复选框读取
+    const placeTypes = [...document.querySelectorAll('.venue-type-cb:checked')].map(cb => cb.value);
+    if (placeTypes.length === 0) {
+        showToast('请至少勾选一种场所类型！');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-map-location-dot"></i> 智能推荐场所'; }
+        return;
+    }
 
     try {
         const places = await searchNearbyPlaces(target.lat, target.lng, searchRadiusM, placeTypes);
@@ -1214,7 +1239,7 @@ async function searchNearbyVenues() {
 
     if (btn) {
         btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-map-location-dot"></i> 智能推荐聚会场所';
+        btn.innerHTML = '<i class="fa-solid fa-map-location-dot"></i> 智能推荐场所';
     }
 }
 

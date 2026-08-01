@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>海外多地点智能选址与自动分组决策系统 V5.0 Pro</title>
+    <title>智能选址分组决策系统</title>
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -187,7 +187,7 @@
                     <i class="fa-solid fa-crosshairs"></i> 目标选址
                 </button>
                 <button class="btn btn-sm sub-tab-btn" id="sub-tab-venue" onclick="switchTargetSubTab('venue')" style="flex:1; font-size:11px; padding:6px 8px; border-radius:6px; transition:all 0.2s;">
-                    <i class="fa-solid fa-map-location-dot"></i> 聚会场所推荐
+                    <i class="fa-solid fa-map-location-dot"></i> 智能推荐场所
                 </button>
             </div>
 
@@ -255,18 +255,50 @@
                 </div>
             </div>
 
-            <!-- 子页面 2: 聚会场所推荐 -->
+            <!-- 子页面 2: 智能推荐场所 -->
             <div id="target-sub-venue" class="target-sub-page" style="display:none;">
                 <div class="section-card" style="border:1px solid rgba(139,92,246,0.25); background:rgba(139,92,246,0.05);">
-                    <div class="section-title"><i class="fa-solid fa-map-location-dot" style="color:var(--accent-purple);"></i> 智能聚会场所推荐</div>
+                    <div class="section-title"><i class="fa-solid fa-map-location-dot" style="color:var(--accent-purple);"></i> 智能推荐场所</div>
                     <div style="font-size:11px; color:var(--text-muted); margin-bottom:10px; line-height:1.6;">
-                        🔍 基于已选中的分组中心坐标，搜索附近的图书馆、社区活动中心、教堂等适合聚会的公共场所，并按「对全组最便利」智能排序。
+                        🔍 基于已选中的分组中心坐标，搜索附近指定类型的公共场所，并按「对全组最便利」智能排序。
                     </div>
+
+                    <div style="margin-bottom:10px;">
+                        <div style="font-size:11px; font-weight:600; margin-bottom:6px; color:var(--text-main);">📋 选择搜索场所类型：</div>
+                        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px;">
+                            <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;padding:4px 8px;background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.3);border-radius:6px;">
+                                <input type="checkbox" class="venue-type-cb" value="library" checked> 📚 图书馆
+                            </label>
+                            <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;padding:4px 8px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);border-radius:6px;">
+                                <input type="checkbox" class="venue-type-cb" value="community_center" checked> 🏛️ 社区中心
+                            </label>
+                            <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;padding:4px 8px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);border-radius:6px;">
+                                <input type="checkbox" class="venue-type-cb" value="park"> 🌳 公园
+                            </label>
+                            <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;padding:4px 8px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);border-radius:6px;">
+                                <input type="checkbox" class="venue-type-cb" value="church"> ⛪ 教堂
+                            </label>
+                            <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;padding:4px 8px;background:rgba(236,72,153,0.12);border:1px solid rgba(236,72,153,0.3);border-radius:6px;">
+                                <input type="checkbox" class="venue-type-cb" value="cafe"> ☕ 咖啡馆
+                            </label>
+                            <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;padding:4px 8px;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);border-radius:6px;">
+                                <input type="checkbox" class="venue-type-cb" value="restaurant"> 🍽️ 餐厅
+                            </label>
+                        </div>
+                        <div style="display:flex; gap:6px; align-items:center;">
+                            <input type="text" id="venue-custom-type" class="form-control" placeholder="自定义类型 (英文关键词，如 school)" style="flex:1; font-size:11px;">
+                            <button class="btn btn-outline btn-sm" onclick="addCustomVenueType()" style="white-space:nowrap;">
+                                <i class="fa-solid fa-plus"></i> 添加
+                            </button>
+                        </div>
+                        <div id="custom-venue-types" style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;"></div>
+                    </div>
+
                     <div style="font-size:11px; color:var(--text-muted); margin-bottom:10px; padding:8px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2); border-radius:6px;">
-                        💡 <strong>使用步骤：</strong>先在「目标选址」中选定一个中心 → 切回此页面 → 点击搜索
+                        💡 <strong>使用步骤：</strong>先在「目标选址」中选定一个中心 → 勾选场所类型 → 点击搜索
                     </div>
                     <button class="btn btn-primary" id="search-venues-btn" onclick="searchNearbyVenues()" style="width:100%; padding:10px; font-size:13px;">
-                        <i class="fa-solid fa-map-location-dot"></i> 搜索附近聚会场所
+                        <i class="fa-solid fa-map-location-dot"></i> 智能推荐场所
                     </button>
                 </div>
                 <div id="venues-results" style="display:none; margin-top:0;"></div>
