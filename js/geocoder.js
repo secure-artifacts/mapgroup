@@ -195,27 +195,36 @@ async function _nominatimSearch(query, countryCode) {
     return null;
 }
 
-// ======================== Google Places API (Nearby Search) ========================
+// ======================== Google Places 搜索 (双模式) ========================
 
 /**
- * Get saved Google Maps API Key
+ * Get/Save/Load Google Script URL (Apps Script 部署地址)
+ */
+function getGoogleScriptUrl() {
+    const input = document.getElementById('google-script-url');
+    return input ? input.value.trim() : (localStorage.getItem('google_script_url') || '');
+}
+function saveGoogleScriptUrl() {
+    localStorage.setItem('google_script_url', getGoogleScriptUrl());
+}
+function loadGoogleScriptUrl() {
+    const saved = localStorage.getItem('google_script_url');
+    if (saved) {
+        const input = document.getElementById('google-script-url');
+        if (input) input.value = saved;
+    }
+}
+
+/**
+ * Get/Save/Load Google Maps API Key
  */
 function getGoogleMapsKey() {
     const input = document.getElementById('google-maps-api-key');
     return input ? input.value.trim() : (localStorage.getItem('google_maps_api_key') || '');
 }
-
-/**
- * Save Google Maps API Key to localStorage
- */
 function saveGoogleMapsKey() {
-    const key = getGoogleMapsKey();
-    localStorage.setItem('google_maps_api_key', key);
+    localStorage.setItem('google_maps_api_key', getGoogleMapsKey());
 }
-
-/**
- * Load saved Google Maps API Key on page load
- */
 function loadGoogleMapsKey() {
     const saved = localStorage.getItem('google_maps_api_key');
     if (saved) {
@@ -225,20 +234,62 @@ function loadGoogleMapsKey() {
 }
 
 /**
- * 搜索指定经纬度附近的公共聚会场所 (Google Places Nearby Search - New API)
- * @param {number} lat - 中心纬度
- * @param {number} lng - 中心经度
- * @param {number} radiusMeters - 搜索半径 (米)
- * @param {string[]} placeTypes - Google Places 类型数组 (如 ['library', 'community_center'])
- * @returns {Promise<Array>} - 场所列表
+ * 搜索附近场所 — 双模式自动选择
+ * 优先级: 1. Google Apps Script URL (免费) → 2. 直接 Google Places API (需 Key)
  */
 async function searchNearbyPlaces(lat, lng, radiusMeters, placeTypes) {
+    const scriptUrl = getGoogleScriptUrl();
+    
+    // 模式 1: 通过 Google Apps Script 代理 (推荐·免费·Key 隐藏)
+    if (scriptUrl) {
+        console.log('[Places] 使用 Google Apps Script 代理搜索');
+        return await _searchViaAppsScript(scriptUrl, lat, lng, radiusMeters, placeTypes);
+    }
+    
+    // 模式 2: 直接调用 Google Places API (需要浏览器端 API Key)
     const apiKey = getGoogleMapsKey();
-    if (!apiKey) {
-        alert('请先在【目标规划】面板中配置 Google Maps API Key！');
+    if (apiKey) {
+        console.log('[Places] 使用 Google Places API 直接搜索');
+        return await _searchViaGoogleDirect(apiKey, lat, lng, radiusMeters, placeTypes);
+    }
+    
+    alert('请先配置以下任一项：\n1. Google Apps Script URL（推荐·免费）\n2. Google Maps API Key\n\n在【人员管理】面板中配置。');
+    return [];
+}
+
+/**
+ * 模式 1: 通过 Apps Script 代理搜索
+ */
+async function _searchViaAppsScript(scriptUrl, lat, lng, radiusMeters, placeTypes) {
+    const typesStr = Array.isArray(placeTypes) ? placeTypes.join(',') : placeTypes;
+    const url = `${scriptUrl}?action=places&lat=${lat}&lng=${lng}&radius=${radiusMeters}&types=${typesStr}`;
+    
+    try {
+        const resp = await fetch(url);
+        if (!resp.ok) {
+            console.warn('Apps Script error:', resp.status);
+            return [];
+        }
+        const data = await resp.json();
+        if (data.success && data.places) {
+            return data.places.map(p => ({
+                ...p,
+                typeLabel: p.typeLabel || _getPlaceTypeLabel(p.types || [])
+            }));
+        } else {
+            console.warn('Apps Script returned:', data.error);
+            return [];
+        }
+    } catch (e) {
+        console.warn('Apps Script fetch error:', e);
         return [];
     }
+}
 
+/**
+ * 模式 2: 直接调用 Google Places API (New)
+ */
+async function _searchViaGoogleDirect(apiKey, lat, lng, radiusMeters, placeTypes) {
     const url = 'https://places.googleapis.com/v1/places:searchNearby';
 
     const body = {
@@ -286,7 +337,7 @@ async function searchNearbyPlaces(lat, lng, radiusMeters, placeTypes) {
                     googleMapsUri: place.googleMapsUri || '',
                     typeLabel: _getPlaceTypeLabel(place.types || [])
                 };
-            }).sort((a, b) => a.distance - b.distance); // 按距离排序
+            }).sort((a, b) => a.distance - b.distance);
         }
     } catch (e) {
         console.warn('Google Places search error:', e);

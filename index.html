@@ -129,8 +129,24 @@
                 </div>
                 <div class="form-group" style="margin-bottom:10px;">
                     <label style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                        <i class="fa-solid fa-code" style="color:var(--accent-emerald);"></i>
+                        <span>Google Script URL（推荐·免费·Key安全）</span>
+                    </label>
+                    <div style="display:flex; gap:6px;">
+                        <input type="text" id="google-script-url" class="form-control" 
+                               placeholder="粘贴 Apps Script 部署的 Web App URL" 
+                               style="font-size:11px; flex:1;"
+                               oninput="saveGoogleScriptUrl()">
+                    </div>
+                    <div style="font-size:10px; color:var(--text-muted); margin-top:3px;">
+                        使用 Google Apps Script 代理搜索附近场所 · API Key 安全存储在脚本中 · 
+                        <a href="https://script.google.com" style="color:var(--accent-emerald);" target="_blank">部署脚本</a>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom:10px;">
+                    <label style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
                         <i class="fa-solid fa-key" style="color:var(--accent-blue);"></i>
-                        <span>Google Maps API Key (附近场所搜索)</span>
+                        <span>Google Maps API Key（备选·直连）</span>
                     </label>
                     <div style="display:flex; gap:6px;">
                         <input type="text" id="google-maps-api-key" class="form-control" 
@@ -139,7 +155,7 @@
                                oninput="saveGoogleMapsKey()">
                     </div>
                     <div style="font-size:10px; color:var(--text-muted); margin-top:3px;">
-                        需开启 Places API · 
+                        如未配置 Script URL 则直连 Google API · 
                         <a href="https://console.cloud.google.com/apis/credentials" style="color:var(--accent-blue);" target="_blank">Google Cloud Console</a>
                     </div>
                 </div>

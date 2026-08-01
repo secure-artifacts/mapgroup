@@ -62,6 +62,9 @@ window.onload = function() {
     // Load saved Google Maps API Key
     if (typeof loadGoogleMapsKey === 'function') loadGoogleMapsKey();
 
+    // Load saved Google Apps Script URL
+    if (typeof loadGoogleScriptUrl === 'function') loadGoogleScriptUrl();
+
     loadSavedData();
     updateGlobalStats();
 };
