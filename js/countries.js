@@ -189,4 +189,15 @@ function initCountrySelector() {
         option.setAttribute('data-code', c.code);
         datalist.appendChild(option);
     });
+
+    // Restore saved country
+    const saved = localStorage.getItem('selected_country');
+    const input = document.getElementById('country-selector');
+    if (saved && input) input.value = saved;
+
+    // Save on change
+    if (input) {
+        input.addEventListener('change', () => localStorage.setItem('selected_country', input.value));
+        input.addEventListener('input', () => localStorage.setItem('selected_country', input.value));
+    }
 }
