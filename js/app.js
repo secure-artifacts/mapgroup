@@ -167,6 +167,13 @@ function sanitizeImportedString(val) {
     return str;
 }
 
+function formatTargetName(name) {
+    if (!name) return '选址区域';
+    return name.replace(/^覆盖区-(\d+)号中心$/, '$1号区域')
+               .replace(/^锚点-(\d+)号中心$/, '$1号区域')
+               .replace(/^分组-(\d+) 重心$/, '$1号区域');
+}
+
 function loadSavedData() {
     const savedPeople = localStorage.getItem('global_map_people');
     const savedTargets = localStorage.getItem('global_map_targets');
@@ -186,7 +193,7 @@ function loadSavedData() {
     if (savedTargets) {
         targetPoints = JSON.parse(savedTargets);
         targetPoints.forEach(t => { 
-            t.name = sanitizeImportedString(t.name);
+            t.name = formatTargetName(sanitizeImportedString(t.name));
             if (t.address) t.address = sanitizeImportedString(t.address);
             if(t.visible === undefined) t.visible = true; 
         });
@@ -1829,6 +1836,7 @@ function renderTargetsList() {
     listDiv.innerHTML = '';
 
     targetPoints.forEach(t => {
+        t.name = formatTargetName(t.name);
         const isActive = t.id === activeTargetId;
         const div = document.createElement('div');
         div.className = `target-box ${isActive ? 'active' : ''}`;

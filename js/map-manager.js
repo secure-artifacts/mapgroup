@@ -374,6 +374,11 @@ class MapManager {
                 if (d <= t.radius) memberCount++;
             });
 
+            let displayName = t.name || '选址区域';
+            displayName = displayName.replace(/^覆盖区-(\d+)号中心$/, '$1号区域')
+                                     .replace(/^锚点-(\d+)号中心$/, '$1号区域')
+                                     .replace(/^分组-(\d+) 重心$/, '$1号区域');
+
             const centerIcon = L.divIcon({
                 className: 'target-center-marker',
                 html: `
@@ -382,12 +387,13 @@ class MapManager {
                             <i class="fa-solid fa-arrows-up-down-left-right"></i>
                         </div>
                         <div class="target-center-title" style="border-color:${t.color};">
-                            <span>${t.name}</span>
+                            <span>${displayName}</span>
+                            <span class="target-radius-tag" style="background:rgba(255,255,255,0.18); padding:1px 6px; border-radius:10px; font-size:11px; color:#e2e8f0; font-weight:600;">${t.radius}km</span>
                             <span class="target-count-tag" style="background:${t.color}; color:#fff;">${memberCount}人</span>
                         </div>
                     </div>
                 `,
-                iconSize: [180, 44],
+                iconSize: [230, 44],
                 iconAnchor: [18, 22]
             });
 

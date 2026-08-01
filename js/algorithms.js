@@ -21,7 +21,7 @@ function runGreedyCoverAlgorithm(peopleData, radiusKm, anchors = []) {
         });
 
         centers.push({
-            name: anchor.name || `锚点-${groupIndex}号中心`,
+            name: anchor.name || `${groupIndex}号区域`,
             lat: anchor.lat,
             lng: anchor.lng,
             radius: anchor.radius, // 保留锚点原有半径
@@ -60,7 +60,7 @@ function runGreedyCoverAlgorithm(peopleData, radiusKm, anchors = []) {
         }
 
         centers.push({
-            name: `覆盖区-${groupIndex}号中心`,
+            name: `${groupIndex}号区域`,
             lat: bestPerson.lat,
             lng: bestPerson.lng,
             radius: radiusKm,
@@ -167,7 +167,7 @@ function runKMeansAlgorithm(peopleData, k, anchors = []) {
         // 固定锚点保留原有半径，新中心使用算法计算的半径
         if (isFixed[idx] && anchors[idx]) {
             return {
-                name: anchors[idx].name || `锚点-${idx + 1}`,
+                name: anchors[idx].name || `${idx + 1}号区域`,
                 lat: c.lat,
                 lng: c.lng,
                 radius: anchors[idx].radius,
@@ -184,7 +184,7 @@ function runKMeansAlgorithm(peopleData, k, anchors = []) {
         });
 
         return {
-            name: `分组-${idx + 1} 重心`,
+            name: `${idx + 1}号区域`,
             lat: c.lat,
             lng: c.lng,
             radius: parseFloat(maxR.toFixed(1)),
