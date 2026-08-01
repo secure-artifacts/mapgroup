@@ -181,14 +181,16 @@
 
 
         <div id="target-tab" class="tab-content">
-            <!-- 子页面导航 -->
-            <div style="display:flex; gap:0; margin-bottom:10px; background:rgba(0,0,0,0.3); border-radius:8px; padding:3px; border:1px solid rgba(255,255,255,0.08);">
-                <button class="btn btn-sm sub-tab-btn active" id="sub-tab-site" onclick="switchTargetSubTab('site')" style="flex:1; font-size:11px; padding:6px 8px; border-radius:6px; transition:all 0.2s;">
-                    <i class="fa-solid fa-crosshairs"></i> 目标选址
-                </button>
-                <button class="btn btn-sm sub-tab-btn" id="sub-tab-venue" onclick="switchTargetSubTab('venue')" style="flex:1; font-size:11px; padding:6px 8px; border-radius:6px; transition:all 0.2s;">
-                    <i class="fa-solid fa-map-location-dot"></i> 智能推荐场所
-                </button>
+            <!-- 子页面导航 (置顶固定) -->
+            <div style="position:sticky; top:-16px; margin:-16px -16px 12px -16px; padding:12px 16px 8px 16px; background:var(--bg-card); z-index:50; border-bottom:1px solid rgba(255,255,255,0.08); box-shadow:0 4px 15px rgba(0,0,0,0.4);">
+                <div style="display:flex; gap:0; background:rgba(0,0,0,0.3); border-radius:8px; padding:3px; border:1px solid rgba(255,255,255,0.08);">
+                    <button class="btn btn-sm sub-tab-btn active" id="sub-tab-site" onclick="switchTargetSubTab('site')" style="flex:1; font-size:11px; padding:6px 8px; border-radius:6px; transition:all 0.2s;">
+                        <i class="fa-solid fa-crosshairs"></i> 目标选址
+                    </button>
+                    <button class="btn btn-sm sub-tab-btn" id="sub-tab-venue" onclick="switchTargetSubTab('venue')" style="flex:1; font-size:11px; padding:6px 8px; border-radius:6px; transition:all 0.2s;">
+                        <i class="fa-solid fa-map-location-dot"></i> 智能推荐场所
+                    </button>
+                </div>
             </div>
 
             <!-- 子页面 1: 目标选址 -->
