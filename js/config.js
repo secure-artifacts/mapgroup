@@ -2,8 +2,8 @@
  * Application Configuration & Constants
  */
 const APP_CONFIG = {
-    DEFAULT_CENTER: [39.8283, -98.5795], // Default view (US continental center)
-    DEFAULT_ZOOM: 5,
+    DEFAULT_CENTER: [20, 0], // Global view
+    DEFAULT_ZOOM: 2,
     COLORS: ['#3b82f6', '#10b981', '#f43f5e', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#6366f1', '#14b8a6'],
     TILE_PROVIDERS: {
         google_road: {

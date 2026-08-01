@@ -648,7 +648,7 @@ class MapManager {
             this.activeRouteLines.push(rLine);
             this.map.fitBounds(rLine.getBounds(), { padding: [60, 60] });
         } else {
-            alert("路线计算请求失败，请重试。");
+            showToast("路线计算请求失败，请重试。", "error");
         }
     }
 

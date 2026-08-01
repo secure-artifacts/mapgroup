@@ -67,6 +67,7 @@ window.onload = function() {
 
     loadSavedData();
     updateGlobalStats();
+    if (typeof updateCacheCountLabel === 'function') updateCacheCountLabel();
 };
 
 function handleMapClick(e) {
@@ -319,7 +320,7 @@ function loadSampleDemoData() {
     saveData();
     renderAllMapVisuals();
     mapManager.fitBoundsToPeople(peopleData);
-    alert("已成功加载 11 名示范人员数据！地图已生成常驻姓名标签与高亮定位。");
+    showToast("已成功加载 11 名示范人员数据！地图已生成常驻姓名标签与高亮定位。");
 }
 
 // ===================== Group Management =====================
@@ -471,11 +472,12 @@ function renderGroupPanel() {
 
 function exportAllData() {
     const data = {
-        version: '5.0',
+        version: '5.1',
         exportDate: new Date().toISOString(),
         people: peopleData,
         targets: targetPoints,
-        groupMeta: groupMeta
+        groupMeta: groupMeta,
+        geocodeCache: typeof getGeocodeCacheForExport === 'function' ? getGeocodeCacheForExport() : {}
     };
     
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -500,7 +502,7 @@ async function importAllData(event) {
         const data = JSON.parse(text);
         
         if (!data.people || !Array.isArray(data.people)) {
-            alert('❌ 无效的数据文件格式！');
+            showToast('❌ 无效的数据文件格式！');
             return;
         }
         
@@ -564,15 +566,21 @@ async function importAllData(event) {
             });
         }
         
+        // Import geocode cache
+        if (data.geocodeCache && typeof mergeGeocodeCache === 'function') {
+            mergeGeocodeCache(data.geocodeCache);
+        }
+
         rebuildGroupMeta();
         saveData();
         renderAllMapVisuals();
+        if (typeof updateCacheCountLabel === 'function') updateCacheCountLabel();
         
         const importedCount = mergeChoice === 'add_new' ? newPeople.length : data.people.length;
-        alert(`✅ 成功导入 ${importedCount} 名人员数据！` +
+        showToast(`✅ 成功导入 ${importedCount} 名人员数据！` +
             (duplicates.length > 0 ? ` (${duplicates.length} 名重名${mergeChoice === 'overwrite' ? '已覆盖' : mergeChoice === 'add_all' ? '已全部导入' : '已跳过'})` : ''));
     } catch (e) {
-        alert('❌ 文件解析失败：' + e.message);
+        showToast('❌ 文件解析失败：' + e.message);
     }
     
     event.target.value = '';
@@ -598,7 +606,7 @@ async function addSinglePerson() {
     const status = document.getElementById('add-status');
 
     if (!name || !address) {
-        alert("请输入完整的姓名和地址/坐标！");
+        showToast("请输入完整的姓名和地址/坐标！");
         return;
     }
     status.innerText = "🔍 智能定位中...";
@@ -625,12 +633,12 @@ async function addSinglePerson() {
 async function pasteSinglePersonFromClipboard() {
     try {
         if (!navigator.clipboard || !navigator.clipboard.readText) {
-            alert('请直接在姓名或地址输入框内按 Ctrl+V 粘贴！');
+            showToast('请直接在姓名或地址输入框内按 Ctrl+V 粘贴！');
             return;
         }
         const text = await navigator.clipboard.readText();
         if (!text || !text.trim()) {
-            alert('📋 当前剪贴板无内容！\n请先在表格或 Excel 中复制单元格数据。');
+            showToast('📋 当前剪贴板无内容！\n请先在表格或 Excel 中复制单元格数据。');
             return;
         }
         const lines = text.trim().split(/\r?\n/).filter(Boolean);
@@ -654,7 +662,7 @@ async function pasteSinglePersonFromClipboard() {
         const status = document.getElementById('add-status');
         if (status) status.innerText = `📋 已自动将剪贴板内容拆分填入框内，点击“添加”按钮完成定位！`;
     } catch (e) {
-        alert('读取剪贴板受限，请在姓名或地址框内按 Ctrl+V 粘贴！');
+        showToast('读取剪贴板受限，请在姓名或地址框内按 Ctrl+V 粘贴！');
     }
 }
 
@@ -671,30 +679,59 @@ async function editPerson(idx, event) {
     const p = peopleData[idx];
     if(!p) return;
 
-    const newName = prompt("编辑人员姓名：", p.name);
-    if(newName === null) return;
-    
-    const newAddress = prompt("编辑人员地址或 Lat,Lng 坐标：", p.address);
-    if(newAddress === null) return;
+    // Create inline edit modal
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.6);z-index:99998;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+        <div style="background:var(--bg-card,#1e293b);border:1px solid var(--border-color,#334155);border-radius:12px;padding:20px;width:90%;max-width:450px;box-shadow:0 10px 30px rgba(0,0,0,0.5);color:var(--text-main,#f8fafc);">
+            <h4 style="margin:0 0 14px 0;font-size:15px;"><i class="fa-solid fa-user-pen" style="color:var(--accent-blue);"></i> 编辑人员信息</h4>
+            <div style="margin-bottom:10px;">
+                <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px;">姓名</label>
+                <input id="edit-person-name" type="text" class="form-control" value="${p.name.replace(/"/g, '&quot;')}" style="width:100%;box-sizing:border-box;font-size:13px;">
+            </div>
+            <div style="margin-bottom:10px;">
+                <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px;">地址 / 坐标</label>
+                <input id="edit-person-addr" type="text" class="form-control" value="${p.address.replace(/"/g, '&quot;')}" style="width:100%;box-sizing:border-box;font-size:13px;">
+            </div>
+            <div style="font-size:10px;color:var(--text-muted);margin-bottom:12px;">修改地址后将自动重新解析坐标</div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;">
+                <button class="btn btn-outline btn-sm" id="edit-person-cancel">取消</button>
+                <button class="btn btn-primary btn-sm" id="edit-person-save"><i class="fa-solid fa-check"></i> 保存</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
 
-    const trimmedName = newName.trim() || p.name;
-    const trimmedAddress = newAddress.trim() || p.address;
+    // Focus name input
+    setTimeout(() => document.getElementById('edit-person-name')?.focus(), 100);
 
-    if (trimmedAddress !== p.address) {
-        const coords = await freeGeocode(trimmedAddress);
-        if (coords) {
-            peopleData[idx] = { name: trimmedName, lat: coords.lat, lng: coords.lng, address: trimmedAddress, group: p.group || '未分组' };
-        } else {
-            alert("该地址无法定位，已保留原坐标。");
-            peopleData[idx].name = trimmedName;
-            peopleData[idx].address = trimmedAddress;
-        }
-    } else {
-        peopleData[idx].name = trimmedName;
-    }
+    return new Promise((resolve) => {
+        overlay.querySelector('#edit-person-cancel').onclick = () => { overlay.remove(); resolve(); };
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); resolve(); } });
+        overlay.querySelector('#edit-person-save').onclick = async () => {
+            const newName = document.getElementById('edit-person-name').value.trim() || p.name;
+            const newAddress = document.getElementById('edit-person-addr').value.trim() || p.address;
 
-    saveData();
-    renderAllMapVisuals();
+            if (newAddress !== p.address) {
+                const coords = await freeGeocode(newAddress);
+                if (coords) {
+                    peopleData[idx] = { name: newName, lat: coords.lat, lng: coords.lng, address: newAddress, group: p.group || '未分组' };
+                    showToast(`✅ "${newName}" 已更新，地址已重新定位`, 'success');
+                } else {
+                    showToast('该地址无法定位，已保留原坐标', 'warning');
+                    peopleData[idx].name = newName;
+                    peopleData[idx].address = newAddress;
+                }
+            } else {
+                peopleData[idx].name = newName;
+            }
+
+            saveData();
+            renderAllMapVisuals();
+            overlay.remove();
+            resolve();
+        };
+    });
 }
 
 function renderRosterList(filterText = '') {
@@ -770,7 +807,7 @@ async function processParsedRows(rows) {
     // Mandatory: must select a country first
     const countryCode = (typeof getSelectedCountryCode === 'function') ? getSelectedCountryCode() : '';
     if (!countryCode) {
-        alert('⚠️ 请先选择人员所在国家！\n\n在“选择人员所在国家”输入框中搜索并选择国家后再导入。');
+        showToast('⚠️ 请先选择人员所在国家！\n\n在“选择人员所在国家”输入框中搜索并选择国家后再导入。');
         return;
     }
 
@@ -962,7 +999,7 @@ async function openPasteModal(mode = 'batch') {
     
     if (!modal || !textarea) {
         console.error('[PasteSystem] ❌ 找不到 paste-modal 或 paste-textarea DOM 节点！');
-        alert('页面粘贴组件未就绪，请刷新页面再试。');
+        showToast('页面粘贴组件未就绪，请刷新页面再试。');
         return;
     }
 
@@ -1008,7 +1045,7 @@ function submitPasteModal() {
     const text = document.getElementById('paste-textarea').value;
     console.log('[PasteSystem] ⚡ 提交粘贴文本进行解析，模式:', window.currentPasteMode, '文本长度:', text ? text.length : 0);
     if (!text || !text.trim()) {
-        alert('请先在框内按 Ctrl+V 粘贴表格内容！');
+        showToast('请先在框内按 Ctrl+V 粘贴表格内容！');
         return;
     }
 
@@ -1064,7 +1101,7 @@ window.clearNearbyVenues = clearNearbyVenues;
  */
 async function searchNearbyVenues() {
     if (!activeTargetId) {
-        alert('请先选择一个分组中心！点击地图上的分组水滴即可选中。');
+        showToast('请先选择一个分组中心！点击地图上的分组水滴即可选中。');
         return;
     }
 
@@ -1079,7 +1116,7 @@ async function searchNearbyVenues() {
     });
 
     if (groupMembers.length === 0) {
-        alert(`${target.name} 覆盖范围内没有成员，无法计算最佳场所。`);
+        showToast(`${target.name} 覆盖范围内没有成员，无法计算最佳场所。`);
         return;
     }
 
@@ -1142,7 +1179,7 @@ async function searchNearbyVenues() {
         }
     } catch (e) {
         console.error('搜索附近场所出错:', e);
-        alert('搜索附近场所时出现网络错误，请检查 Google Maps API Key 或网络连接。');
+        showToast('搜索附近场所时出现网络错误，请检查 Google Maps API Key 或网络连接。');
     }
 
     if (btn) {
@@ -1302,7 +1339,7 @@ function importFromRawText(text) {
     if (rows.length > 0) {
         processParsedRows(rows);
     } else {
-        alert('未在剪贴板或输入的文本中识别到有效的数据行。');
+        showToast('未在剪贴板或输入的文本中识别到有效的数据行。');
     }
 }
 
@@ -1519,13 +1556,13 @@ async function batchSearchTargetAddresses() {
     if (!textarea) return;
     const text = textarea.value.trim();
     if (!text) {
-        alert('请先在框内粘贴或输入多个选址地址（一行一个）！');
+        showToast('请先在框内粘贴或输入多个选址地址（一行一个）！');
         return;
     }
 
     const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
     if (lines.length === 0) {
-        alert('未检测到有效的地址行！');
+        showToast('未检测到有效的地址行！');
         return;
     }
 
@@ -1657,7 +1694,7 @@ function updateActiveTargetRadius() {
 
 function saveCurrentAsTarget() {
     if (!tempLatLng) {
-        alert("请先在地图上点击或搜索选择目标位置！");
+        showToast("请先在地图上点击或搜索选择目标位置！");
         return;
     }
     const name = prompt("请为此选址中心命名：", tempAddressName);
@@ -1717,7 +1754,7 @@ function editTargetRadius(id, event) {
             saveData();
             renderAllMapVisuals();
         } else {
-            alert("请输入有效的数字半径（大于 0）！");
+            showToast("请输入有效的数字半径（大于 0）！");
         }
     }
 }
@@ -1842,7 +1879,7 @@ function batchInvertSelect() {
 function batchCopyByNearestTarget() {
     const selected = targetPoints.filter(t => t.visible);
     if (selected.length === 0) {
-        alert('请先勾选至少一个覆盖区！');
+        showToast('请先勾选至少一个覆盖区！');
         return;
     }
     
@@ -1872,20 +1909,20 @@ function batchCopyByNearestTarget() {
     });
     
     if (totalCount === 0) {
-        alert('勾选的覆盖区内没有人员数据。');
+        showToast('勾选的覆盖区内没有人员数据。');
         return;
     }
     
     navigator.clipboard.writeText(text).then(() => {
-        alert(`已成功复制 ${totalCount} 名人员数据（已自动去重，每人对应最近中心）！可以直接粘贴到 Excel。`);
-    }).catch(() => alert('复制失败，请重试。'));
+        showToast(`已成功复制 ${totalCount} 名人员数据（已自动去重，每人对应最近中心）！可以直接粘贴到 Excel。`);
+    }).catch(() => showToast('复制失败，请重试。'));
 }
 
 // 按覆盖区明细导出：包含重叠区域人员
 function batchCopyAllDetails() {
     const selected = targetPoints.filter(t => t.visible);
     if (selected.length === 0) {
-        alert('请先勾选至少一个覆盖区！');
+        showToast('请先勾选至少一个覆盖区！');
         return;
     }
     
@@ -1907,19 +1944,19 @@ function batchCopyAllDetails() {
     });
     
     if (totalCount === 0) {
-        alert('勾选的覆盖区内没有人员数据。');
+        showToast('勾选的覆盖区内没有人员数据。');
         return;
     }
     
     navigator.clipboard.writeText(text).then(() => {
-        alert(`已成功复制 ${selected.length} 个覆盖区共 ${totalCount} 条明细数据！可以直接粘贴到 Excel。`);
-    }).catch(() => alert('复制失败，请重试。'));
+        showToast(`已成功复制 ${selected.length} 个覆盖区共 ${totalCount} 条明细数据！可以直接粘贴到 Excel。`);
+    }).catch(() => showToast('复制失败，请重试。'));
 }
 
 function batchDeleteSelected() {
     const selected = targetPoints.filter(t => t.visible);
     if (selected.length === 0) {
-        alert('请先勾选要删除的覆盖区！');
+        showToast('请先勾选要删除的覆盖区！');
         return;
     }
     
@@ -2133,7 +2170,7 @@ function applySmartGroupingPreview() {
 
 function runSmartGrouping() {
     if (peopleData.length === 0) {
-        alert("请先在【人员管理】中导入或加载人员名单数据！");
+        showToast("请先在【人员管理】中导入或加载人员名单数据！");
         return;
     }
 
@@ -2178,11 +2215,11 @@ function runSmartGrouping() {
     } else {
         const k = parseInt(document.getElementById('algo-k').value) || 3;
         if(k > peopleData.length) {
-            alert("设定的分组数 K 不能大于人员总数！");
+            showToast("设定的分组数 K 不能大于人员总数！");
             return;
         }
         if(useAnchors && anchors.length >= k) {
-            alert(`已有 ${anchors.length} 个固定锚点，但分组数仅为 ${k}。请增大分组数（至少 > ${anchors.length}），或关闭锚点开关。`);
+            showToast(`已有 ${anchors.length} 个固定锚点，但分组数仅为 ${k}。请增大分组数（至少 > ${anchors.length}），或关闭锚点开关。`);
             return;
         }
         computedCenters = runKMeansAlgorithm(peopleData, k, anchors);
@@ -2352,7 +2389,7 @@ function copyTargetAreaPeople(targetId, event) {
     });
     
     if (results.length === 0) {
-        alert(`「${target.name}」覆盖范围内没有人员数据。`);
+        showToast(`「${target.name}」覆盖范围内没有人员数据。`);
         return;
     }
     
@@ -2381,7 +2418,7 @@ function copyTargetAreaPeople(targetId, event) {
                 btn.style.borderColor = '';
             }, 1500);
         });
-    }).catch(() => { alert('复制失败，请重试。'); });
+    }).catch(() => { showToast('复制失败，请重试。'); });
 }
 
 // 初始化给【手动添加单个人员】输入框绑定粘贴拆分监听

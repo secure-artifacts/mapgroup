@@ -1,9 +1,50 @@
+// ======================== 地址缓存系统 ========================
+
+const GEOCODE_CACHE_KEY = 'geocode_cache';
+
+function _getGeocodeCache() {
+    try { return JSON.parse(localStorage.getItem(GEOCODE_CACHE_KEY) || '{}'); } 
+    catch(e) { return {}; }
+}
+function _saveGeocodeCache(cache) {
+    localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(cache));
+}
+function _getCachedResult(address) {
+    const cache = _getGeocodeCache();
+    return cache[address.trim().toLowerCase()] || null;
+}
+function _setCachedResult(address, result) {
+    const cache = _getGeocodeCache();
+    cache[address.trim().toLowerCase()] = { lat: result.lat, lng: result.lng, displayName: result.displayName };
+    _saveGeocodeCache(cache);
+}
+function getGeocodeCacheForExport() { return _getGeocodeCache(); }
+function mergeGeocodeCache(importedCache) {
+    if (!importedCache || typeof importedCache !== 'object') return;
+    const cache = _getGeocodeCache();
+    Object.assign(cache, importedCache);
+    _saveGeocodeCache(cache);
+}
+function clearGeocodeCache() {
+    localStorage.removeItem(GEOCODE_CACHE_KEY);
+    updateCacheCountLabel();
+    showToast('地址缓存已清空', 'success');
+}
+function updateCacheCountLabel() {
+    const label = document.getElementById('cache-count-label');
+    if (label) {
+        const count = Object.keys(_getGeocodeCache()).length;
+        label.textContent = `当前缓存 ${count} 条地址`;
+    }
+}
+
 /**
- * Free Geocoding Service — Multi-provider with fallback
- * Provider 0: Google Apps Script (最高优先级, Google 数据, 完全免费)
- * Provider 1: Geoapify (best accuracy, 3000/day per API key)
- * Provider 2: Photon (Komoot) — fast, no API key, no strict rate limit
- * Provider 3: Nominatim (OSM) — backup, 1 req/sec limit
+ * Free Geocoding Service — Multi-provider with fallback + 本地缓存
+ * Provider 0: 本地缓存 (零 API 调用)
+ * Provider 1: Google Apps Script (完全免费)
+ * Provider 2: Geoapify (3000/day)
+ * Provider 3: Photon (无限制)
+ * Provider 4: Nominatim (1/sec)
  */
 async function freeGeocode(address) {
     if (!address || !address.trim()) return null;
@@ -16,6 +57,13 @@ async function freeGeocode(address) {
         if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
             return { lat, lng, displayName: address };
         }
+    }
+
+    // Check cache first (zero API calls)
+    const cached = _getCachedResult(address);
+    if (cached) {
+        console.log('[Geocode] ✅ 缓存命中:', address);
+        return cached;
     }
 
     // Get selected country from the UI selector
@@ -31,26 +79,36 @@ async function freeGeocode(address) {
         }
     }
 
-    // Provider 0: Google Apps Script (最高优先级 — Google 数据 + 完全免费)
+    let result = null;
+
+    // Provider 1: Google Apps Script (最高优先级 — Google 数据 + 完全免费)
     const scriptUrl = getGoogleScriptUrl();
-    if (scriptUrl) {
-        const result = await _googleScriptGeocode(scriptUrl, query, countryCode);
-        if (result) return result;
+    if (!result && scriptUrl) {
+        result = await _googleScriptGeocode(scriptUrl, query, countryCode);
     }
 
-    // Provider 1: Geoapify (if API key configured)
+    // Provider 2: Geoapify (if API key configured)
     const apiKey = getGeoapifyKey();
-    if (apiKey) {
-        const result = await _geoapifySearch(query, countryCode, apiKey);
-        if (result) return result;
+    if (!result && apiKey) {
+        result = await _geoapifySearch(query, countryCode, apiKey);
     }
 
-    // Provider 2: Photon (fast, no strict rate limit)
-    let result = await _photonSearch(query, countryCode);
-    if (result) return result;
+    // Provider 3: Photon (fast, no strict rate limit)
+    if (!result) {
+        result = await _photonSearch(query, countryCode);
+    }
     
-    // Provider 3: Nominatim (backup)
-    result = await _nominatimSearch(query, countryCode);
+    // Provider 4: Nominatim (backup)
+    if (!result) {
+        result = await _nominatimSearch(query, countryCode);
+    }
+
+    // Cache the result for future use
+    if (result) {
+        _setCachedResult(address, result);
+        updateCacheCountLabel();
+    }
+
     return result;
 }
 
@@ -290,7 +348,7 @@ async function searchNearbyPlaces(lat, lng, radiusMeters, placeTypes) {
         return await _searchViaGoogleDirect(apiKey, lat, lng, radiusMeters, placeTypes);
     }
     
-    alert('请先配置以下任一项：\n1. Google Apps Script URL（推荐·免费）\n2. Google Maps API Key\n\n在【人员管理】面板中配置。');
+    showToast('请先配置 Google Script URL 或 Google Maps API Key（在【⚙️ 配置】面板中设置）', 'warning', 5000);
     return [];
 }
 
