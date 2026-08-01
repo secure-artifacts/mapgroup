@@ -179,21 +179,7 @@
             </div>
         </div>
 
-        <!-- Tab 2: 目标规划 -->
-        <div id="target-tab" class="tab-content">
-            <div class="section-card">
-                <div class="section-title"><i class="fa-solid fa-layer-group"></i> 地图底图样式切换</div>
-                <div class="form-group">
-                    <select id="map-tile-select" class="form-control" onchange="mapManager.switchTileLayer(this.value)">
-                        <option value="google_road">Google Maps (路线矢量图)</option>
-                        <option value="google_hybrid">Google Maps (卫星影像图)</option>
-                        <option value="carto_dark">CartoDB Dark (极简暗黑高对比度)</option>
-                        <option value="osm_standard">OpenStreetMap (开源标准图)</option>
-                    </select>
-                </div>
-            </div>
 
-        <!-- Tab 2: 目标规划 (含侧边聚会场所面板) -->
         <div id="target-tab" class="tab-content" style="position:relative;">
             <!-- 竖排侧标签 -->
             <div id="venue-side-tab" onclick="toggleVenuePanel()" style="position:absolute;left:-28px;top:50%;transform:translateY(-50%);writing-mode:vertical-rl;text-orientation:mixed;background:linear-gradient(180deg,rgba(59,130,246,0.85),rgba(139,92,246,0.85));color:#fff;padding:12px 5px;border-radius:8px 0 0 8px;cursor:pointer;font-size:12px;font-weight:600;letter-spacing:3px;z-index:10;box-shadow:-2px 0 10px rgba(0,0,0,0.3);transition:all 0.3s;user-select:none;">
@@ -419,6 +405,18 @@
 
         <!-- Tab 5: 配置 -->
         <div id="config-tab" class="tab-content">
+            <div class="section-card">
+                <div class="section-title"><i class="fa-solid fa-layer-group"></i> 地图底图样式</div>
+                <div class="form-group">
+                    <select id="map-tile-select" class="form-control" onchange="mapManager.switchTileLayer(this.value)">
+                        <option value="google_road">Google Maps (路线矢量图)</option>
+                        <option value="google_hybrid">Google Maps (卫星影像图)</option>
+                        <option value="carto_dark">CartoDB Dark (极简暗黑高对比度)</option>
+                        <option value="osm_standard">OpenStreetMap (开源标准图)</option>
+                    </select>
+                </div>
+            </div>
+
             <div class="section-card">
                 <div class="section-title"><i class="fa-solid fa-earth-americas"></i> 地址解析偏好</div>
                 <div class="form-group" style="margin-bottom:10px;">
