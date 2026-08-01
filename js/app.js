@@ -1094,8 +1094,25 @@ window.toggleAlgoPreviewMode = toggleAlgoPreviewMode;
 window.applySmartGroupingPreview = applySmartGroupingPreview;
 window.searchNearbyVenues = searchNearbyVenues;
 window.clearNearbyVenues = clearNearbyVenues;
+window.toggleVenuePanel = toggleVenuePanel;
+
+// ======================== 聚会场所面板切换 ========================
+
+function toggleVenuePanel() {
+    const panel = document.getElementById('venue-panel');
+    const tab = document.getElementById('venue-side-tab');
+    if (!panel) return;
+    const isHidden = panel.style.display === 'none';
+    panel.style.display = isHidden ? 'block' : 'none';
+    if (tab) {
+        tab.style.background = isHidden
+            ? 'linear-gradient(180deg, rgba(16,185,129,0.9), rgba(5,150,105,0.9))'
+            : 'linear-gradient(180deg, rgba(59,130,246,0.85), rgba(139,92,246,0.85))';
+    }
+}
 
 // ======================== 附近聚会场所推荐 ========================
+
 
 /**
  * 搜索当前选中分组中心附近的聚会场所，并按「对全组最便利」智能排序

@@ -193,39 +193,46 @@
                 </div>
             </div>
 
-            <div class="section-card">
-                <div class="section-header" style="margin-bottom:8px;">
-                    <span class="section-title" style="margin:0;"><i class="fa-solid fa-magnifying-glass-location"></i> 地址搜索与批量选址</span>
-                    <div style="display:flex; gap:2px; background:rgba(0,0,0,0.3); padding:2px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
-                        <button class="btn btn-sm" id="search-mode-single-btn" onclick="switchSearchMode('single')" style="font-size:10px; padding:2px 8px; background:var(--accent-blue); color:#fff;">单地址</button>
-                        <button class="btn btn-sm" id="search-mode-batch-btn" onclick="switchSearchMode('batch')" style="font-size:10px; padding:2px 8px; color:var(--text-muted); background:transparent;">批量多地址</button>
-                    </div>
-                </div>
+        <!-- Tab 2: 目标规划 (含侧边聚会场所面板) -->
+        <div id="target-tab" class="tab-content" style="position:relative;">
+            <!-- 竖排侧标签 -->
+            <div id="venue-side-tab" onclick="toggleVenuePanel()" style="position:absolute;left:-28px;top:50%;transform:translateY(-50%);writing-mode:vertical-rl;text-orientation:mixed;background:linear-gradient(180deg,rgba(59,130,246,0.85),rgba(139,92,246,0.85));color:#fff;padding:12px 5px;border-radius:8px 0 0 8px;cursor:pointer;font-size:12px;font-weight:600;letter-spacing:3px;z-index:10;box-shadow:-2px 0 10px rgba(0,0,0,0.3);transition:all 0.3s;user-select:none;">
+                <i class="fa-solid fa-map-location-dot" style="margin-bottom:6px;display:block;"></i>聚会场所推荐
+            </div>
 
-                <!-- 单地址定位面板 -->
-                <div id="single-search-panel" class="form-group">
-                    <div class="input-group">
-                        <input type="text" id="search-address-input" class="form-control" placeholder="输入地标名称或具体地址...">
-                        <button class="btn btn-primary" onclick="searchTargetAddress()">
-                            <i class="fa-solid fa-magnifying-glass"></i> 搜索定位
+            <!-- 聚会场所推荐 侧滑面板 -->
+            <div id="venue-panel" style="display:none;">
+                <div class="section-card" style="border:1px solid rgba(59,130,246,0.3);background:rgba(59,130,246,0.05);">
+                    <div class="section-header">
+                        <span class="section-title"><i class="fa-solid fa-map-location-dot"></i> 附近聚会场所推荐</span>
+                        <button class="btn btn-outline btn-sm" onclick="toggleVenuePanel()" title="收起">
+                            <i class="fa-solid fa-chevron-up"></i>
                         </button>
                     </div>
+                    <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">
+                        🔍 搜索当前选中分组中心附近的图书馆、社区活动中心等适合团契聚会的公共场所。
+                    </div>
+                    <button class="btn btn-primary" id="search-venues-btn" onclick="searchNearbyVenues()" style="width:100%; padding:9px; font-size:12px;">
+                        <i class="fa-solid fa-map-location-dot"></i> 智能推荐聚会场所
+                    </button>
+                    <div id="venues-results" style="display:none; margin-top:8px; max-height:300px; overflow-y:auto;"></div>
                 </div>
+            </div>
 
-                <!-- 批量多地址粘贴面板 -->
-                <div id="batch-search-panel" class="form-group" style="display:none;">
-                    <textarea id="batch-address-input" rows="4" class="form-control" placeholder="在此粘贴多个目标选址地址（一行一个），例如：&#10;北京天安门&#10;上海东方明珠&#10;广州塔" style="width:100%; box-sizing:border-box; font-size:11px; font-family:monospace; margin-bottom:6px; background:var(--bg-main); color:#fff; padding:6px; border-radius:6px; border:1px solid #475569;"></textarea>
-                    <button class="btn btn-success btn-sm" onclick="batchSearchTargetAddresses()" style="width:100%;">
-                        <i class="fa-solid fa-layer-group"></i> 批量解析并保存为目标中心
+            <div class="section-card">
+                <div class="section-title"><i class="fa-solid fa-map-pin"></i> 目标中心选址</div>
+                <div style="display:flex; gap:6px; margin-bottom:8px;">
+                    <input type="text" id="target-address-input" class="form-control" placeholder="输入地址搜索目标位置" style="flex:1; font-size:11px;">
+                    <button class="btn btn-primary btn-sm" onclick="searchTargetAddress()">
+                        <i class="fa-solid fa-search"></i>
                     </button>
                 </div>
+                <p style="font-size:11px; color:var(--text-muted);">💡 或直接在地图上点击您感兴趣的位置来设定目标中心坐标</p>
 
-                <div id="search-status" style="font-size:11px; color:var(--accent-blue); margin-top:4px;"></div>
-
-                <div style="margin-top:8px; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.1);">
+                <div class="form-group">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                        <span style="font-size:11px; color:var(--text-muted);">设定默认覆盖半径 (公里):</span>
-                        <span id="temp-radius-val-label" style="font-size:11px; font-weight:700; color:var(--accent-blue);">50.0 km</span>
+                        <span style="font-size:12px; font-weight:600;">设定临时勘探半径 (公里):</span>
+                        <span id="temp-radius-val-label" style="font-size:12px; font-weight:700; color:var(--accent-emerald);">50.0 km</span>
                     </div>
                     <div style="display:flex; align-items:center; gap:6px;">
                         <input type="number" id="temp-radius-number" class="form-control" value="50" step="0.5" min="0.1" max="500" oninput="onTempRadiusInput(this.value)" style="width:75px; font-size:11px; padding:3px; text-align:center;" title="键盘直接输入精准公里数">
@@ -408,16 +415,6 @@
                 </div>
             </div>
 
-            <div class="section-card">
-                <div class="section-title"><i class="fa-solid fa-map-location-dot"></i> 附近聚会场所推荐</div>
-                <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">
-                    🔍 搜索当前选中分组中心附近的图书馆、社区活动中心等适合团契聚会的公共场所。
-                </div>
-                <button class="btn btn-primary" id="search-venues-btn" onclick="searchNearbyVenues()" style="width:100%; padding:9px; font-size:12px;">
-                    <i class="fa-solid fa-map-location-dot"></i> 智能推荐聚会场所
-                </button>
-                <div id="venues-results" style="display:none; margin-top:8px; max-height:300px; overflow-y:auto;"></div>
-            </div>
         </div>
 
         <!-- Tab 5: 配置 -->
