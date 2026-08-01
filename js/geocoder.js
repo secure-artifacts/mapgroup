@@ -334,22 +334,35 @@ function loadGoogleMapsKey() {
  */
 async function searchNearbyPlaces(lat, lng, radiusMeters, placeTypes) {
     const scriptUrl = getGoogleScriptUrl();
-    
-    // 模式 1: 通过 Google Apps Script 代理 (推荐·免费·Key 隐藏)
-    if (scriptUrl) {
-        console.log('[Places] 使用 Google Apps Script 代理搜索');
-        return await _searchViaAppsScript(scriptUrl, lat, lng, radiusMeters, placeTypes);
-    }
-    
-    // 模式 2: 直接调用 Google Places API (需要浏览器端 API Key)
     const apiKey = getGoogleMapsKey();
-    if (apiKey) {
-        console.log('[Places] 使用 Google Places API 直接搜索');
-        return await _searchViaGoogleDirect(apiKey, lat, lng, radiusMeters, placeTypes);
+    
+    let results = [];
+
+    // 模式 1: 优先尝试通过 Google Apps Script 代理搜索
+    if (scriptUrl) {
+        console.log('[Places] 尝试使用 Google Apps Script 代理搜索...');
+        results = await _searchViaAppsScript(scriptUrl, lat, lng, radiusMeters, placeTypes);
+        if (results && results.length > 0) {
+            console.log(`[Places] Apps Script 代理搜索成功，获得 ${results.length} 个结果`);
+            return results;
+        }
+        console.warn('[Places] Apps Script 代理未获取到结果或脚本内未配置 Key，降级使用网页 API Key 直连搜索...');
     }
     
-    showToast('请先配置 Google Script URL 或 Google Maps API Key（在【⚙️ 配置】面板中设置）', 'warning', 5000);
-    return [];
+    // 模式 2: 降级/直接使用网页【⚙️ 配置】面板填写的 Google Maps API Key 直连搜索
+    if (apiKey) {
+        console.log('[Places] 使用网页 API Key 直连 Google Places 搜索...');
+        results = await _searchViaGoogleDirect(apiKey, lat, lng, radiusMeters, placeTypes);
+        if (results && results.length > 0) {
+            console.log(`[Places] 直连 API Key 搜索成功，获得 ${results.length} 个结果`);
+            return results;
+        }
+    }
+    
+    if (!scriptUrl && !apiKey) {
+        showToast('请先配置 Google Script URL 或 Google Maps API Key（在【⚙️ 配置】面板中设置）', 'warning', 5000);
+    }
+    return results;
 }
 
 /**
