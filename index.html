@@ -196,9 +196,9 @@
                 <div class="section-card">
                     <div class="section-title"><i class="fa-solid fa-map-pin"></i> 目标中心选址</div>
                     <div style="display:flex; gap:6px; margin-bottom:8px;">
-                        <input type="text" id="target-address-input" class="form-control" placeholder="输入地址搜索目标位置" style="flex:1; font-size:11px;">
+                        <input type="text" id="target-address-input" class="form-control" placeholder="输入地址搜索目标位置" style="flex:1; font-size:11px;" onkeydown="if(event.key==='Enter') searchTargetAddress()">
                         <button class="btn btn-primary btn-sm" onclick="searchTargetAddress()">
-                            <i class="fa-solid fa-search"></i>
+                            <i class="fa-solid fa-search"></i> 搜索
                         </button>
                     </div>
                     <p style="font-size:11px; color:var(--text-muted);">💡 或直接在地图上点击您感兴趣的位置来设定目标中心坐标</p>

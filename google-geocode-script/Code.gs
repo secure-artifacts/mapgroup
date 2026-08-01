@@ -74,6 +74,7 @@ function handlePlacesSearch(e) {
   var lng = parseFloat(e.parameter.lng);
   var radius = parseFloat(e.parameter.radius) || 10000;
   var types = e.parameter.types || 'library,community_center';
+  var apiKey = e.parameter.key || API_KEY;
   
   if (isNaN(lat) || isNaN(lng)) {
     return jsonResponse({ success: false, error: 'Invalid lat/lng' });
@@ -83,7 +84,7 @@ function handlePlacesSearch(e) {
   var places = [];
   
   for (var i = 0; i < typesArray.length; i++) {
-    var results = searchPlacesAPI(lat, lng, radius, typesArray[i].trim());
+    var results = searchPlacesAPI(lat, lng, radius, typesArray[i].trim(), apiKey);
     places = places.concat(results);
   }
   
@@ -102,8 +103,9 @@ function handlePlacesSearch(e) {
   return jsonResponse({ success: true, count: unique.length, places: unique });
 }
 
-function searchPlacesAPI(lat, lng, radius, placeType) {
+function searchPlacesAPI(lat, lng, radius, placeType, apiKey) {
   var url = 'https://places.googleapis.com/v1/places:searchNearby';
+  var keyToUse = apiKey || API_KEY;
   
   var payload = {
     includedTypes: [placeType],
@@ -120,7 +122,7 @@ function searchPlacesAPI(lat, lng, radius, placeType) {
     method: 'post',
     contentType: 'application/json',
     headers: {
-      'X-Goog-Api-Key': API_KEY,
+      'X-Goog-Api-Key': keyToUse,
       'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.types,places.googleMapsUri'
     },
     payload: JSON.stringify(payload),

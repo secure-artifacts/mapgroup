@@ -1597,19 +1597,25 @@ function switchSearchMode(mode) {
 }
 
 async function searchTargetAddress() {
-    const query = document.getElementById('search-address-input').value.trim();
-    if (!query) return;
+    const input = document.getElementById('target-address-input') || document.getElementById('search-address-input');
+    const query = input ? input.value.trim() : '';
+    if (!query) {
+        showToast('请输入要定位的目标地址！', 'warning');
+        return;
+    }
     const statusDiv = document.getElementById('search-status');
-    statusDiv.innerText = "🔍 定位中...";
+    if (statusDiv) statusDiv.innerText = "🔍 定位中...";
 
     const coords = await freeGeocode(query);
     if (coords) {
-        statusDiv.innerText = "✅ 定位成功！";
+        if (statusDiv) statusDiv.innerText = "✅ 定位成功！";
         const latlng = L.latLng(coords.lat, coords.lng);
         mapManager.map.setView(latlng, 14); 
         setTempTarget(latlng, query);
+        showToast(`✅ 已定位到「${query}」，已在地图标出选址点`, 'success');
     } else {
-        statusDiv.innerText = "❌ 检索未果，请尝试更准确的名称。";
+        if (statusDiv) statusDiv.innerText = "❌ 检索未果，请尝试更准确的名称。";
+        showToast(`❌ 未检索到「${query}」，请尝试补充城市或路名名称`, 'error');
     }
 }
 
