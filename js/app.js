@@ -1094,20 +1094,32 @@ window.toggleAlgoPreviewMode = toggleAlgoPreviewMode;
 window.applySmartGroupingPreview = applySmartGroupingPreview;
 window.searchNearbyVenues = searchNearbyVenues;
 window.clearNearbyVenues = clearNearbyVenues;
-window.toggleVenuePanel = toggleVenuePanel;
+window.switchTargetSubTab = switchTargetSubTab;
 
-// ======================== 聚会场所面板切换 ========================
+// ======================== 目标规划子页面切换 ========================
 
-function toggleVenuePanel() {
-    const panel = document.getElementById('venue-panel');
-    const tab = document.getElementById('venue-side-tab');
-    if (!panel) return;
-    const isHidden = panel.style.display === 'none';
-    panel.style.display = isHidden ? 'block' : 'none';
-    if (tab) {
-        tab.style.background = isHidden
-            ? 'linear-gradient(180deg, rgba(16,185,129,0.9), rgba(5,150,105,0.9))'
-            : 'linear-gradient(180deg, rgba(59,130,246,0.85), rgba(139,92,246,0.85))';
+function switchTargetSubTab(which) {
+    // Hide all sub pages
+    document.querySelectorAll('.target-sub-page').forEach(p => p.style.display = 'none');
+    // Deactivate all sub tab buttons
+    document.querySelectorAll('.sub-tab-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'transparent';
+        b.style.color = 'var(--text-muted)';
+    });
+    // Show selected sub page & activate button
+    if (which === 'venue') {
+        document.getElementById('target-sub-venue').style.display = 'block';
+        const btn = document.getElementById('sub-tab-venue');
+        btn.classList.add('active');
+        btn.style.background = 'var(--accent-purple)';
+        btn.style.color = '#fff';
+    } else {
+        document.getElementById('target-sub-site').style.display = 'block';
+        const btn = document.getElementById('sub-tab-site');
+        btn.classList.add('active');
+        btn.style.background = 'var(--accent-blue)';
+        btn.style.color = '#fff';
     }
 }
 
